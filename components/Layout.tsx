@@ -58,12 +58,12 @@ const Layout: React.FC = () => {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
       {/* Mobile Backdrop */}
       {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/20 z-30 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarOpen(false)} />}
 
       {/* Sidebar - COMPACT WIDTH */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#eff4f9] border-r border-slate-200/80 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-xl md:shadow-none flex flex-col`}>
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#eff4f9] border-r border-slate-200/80 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-xl md:shadow-none flex flex-col h-full`}>
         {/* Brand Header */}
         <div className="flex flex-col items-center justify-center p-4 border-b border-slate-200/60 min-h-[80px] relative shrink-0">
           {schoolSettings?.logo_url ? (
@@ -190,7 +190,8 @@ const Layout: React.FC = () => {
         </header>
 
         {/* Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative custom-scrollbar">
+        {/* UPDATE: Removed pb-4/pb-8 bottom padding to ensure full height usage as requested */}
+        <main className="flex-1 overflow-y-auto px-4 pt-4 md:px-8 md:pt-8 pb-0 relative custom-scrollbar">
           <div className="max-w-[1600px] mx-auto animate-in fade-in duration-500 slide-in-from-bottom-2">
             <Outlet />
           </div>
