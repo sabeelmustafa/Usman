@@ -118,35 +118,36 @@ const Layout: React.FC = () => {
           </nav>
         </div>
         
-        {/* DEVELOPER FOOTER - HARDCODED START */}
+        {/* DEVELOPER FOOTER - MODIFIED FOR WIDER LOGO */}
         <div className="bg-slate-100 border-t border-slate-200 p-3 flex flex-col items-center justify-center shrink-0 gap-1.5">
              {/* 
                 ================================================================
                 Developer Branding Section
-                
-                HOW TO CUSTOMIZE:
-                1. Link: Change the href in the <a> tag below.
-                2. Logo: Change the src in the <img> tag below.
                 ================================================================
              */}
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Developed by</span>
             
             <a 
-                href="https://www.yourcompany.com" // <--- PUT YOUR WEBSITE LINK HERE
+                href="https://www.yourcompany.com" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="transition-transform hover:scale-105 active:scale-95"
                 title="Visit Developer Website"
             >
-                {/* <--- PUT YOUR LOGO URL HERE in src attribute */}
+                {/* 
+                    UPDATED IMAGE STYLING:
+                    - h-10: Sets fixed height to 2.5rem (40px)
+                    - w-auto: Allows width to scale naturally based on image ratio
+                    - object-contain: Ensures the whole logo fits without cropping
+                */}
                 <img 
-                    src="https://ui-avatars.com/api/?name=YC&background=0f172a&color=fff&size=48&font-size=0.4" 
+                    src="https://ui-avatars.com/api/?name=YC&background=0f172a&color=fff&size=48&font-size=0.4&length=2" 
                     alt="Developer Logo" 
-                    className="w-8 h-8 rounded-md object-cover shadow-sm ring-1 ring-slate-900/5 hover:shadow-md transition-shadow" 
+                    className="h-10 w-auto max-w-[180px] object-contain hover:opacity-80 transition-opacity" 
                 />
             </a>
         </div>
-        {/* DEVELOPER FOOTER - HARDCODED END */}
+        {/* DEVELOPER FOOTER - END */}
 
       </aside>
 
