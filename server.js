@@ -61,6 +61,7 @@ if (!db) {
       address: '123 Care Lane',
       contact_no: '(555) 123-4567',
       email: 'admin@school.com',
+      website: '',
       logo_url: '',
       currency: '$',
       lastInvoiceNo: 1000,
@@ -191,7 +192,7 @@ app.post('/api/rpc', (req, res) => {
                 break;
 
             case 'saveAttendance':
-                const { records, user } = params;
+                const { records } = params;
                 if (!records || records.length === 0) break;
                 const newEntityIds = records.map(r => r.entityId);
                 db.attendance = db.attendance.filter(a => !(a.date === records[0].date && a.entityType === records[0].entityType && newEntityIds.includes(a.entityId)));
@@ -270,6 +271,197 @@ app.post('/api/rpc', (req, res) => {
              case 'removeStudentCourse':
                  db.student_courses = db.student_courses.filter(sc => sc.id !== params.id);
                  saveDB(db);
+                 break;
+
+             // --- STUDENT FINANCIAL ACTIONS ---
+
+             case 'addStudentAdjustment':
+                 // params: studentId, amount, type, description, date
+                 // Check for existing pending invoice
+                 const pendingInvoice = db.invoices.find(i => i.student_id === params.studentId && i.status === 'Pending');
+                 
+                 if (pendingInvoice) {
+                     // Add to existing invoice
+                     pendingInvoice.items.push({
+                         description: `${params.type}: ${params.description}`,
+                         amount: params.amount
+                     });
+                     pendingInvoice.amount_due += params.amount;
+                     // Log as applied adjustment linked to this invoice
+                     db.student_adjustments.push({ ...params, id: generateUUID(), isApplied: true, invoiceId: pendingInvoice.id });
+                     result = { addedToInvoice: true, invoiceId: pendingInvoice.id };
+                 } else {
+                     // Queue for future
+                     db.student_adjustments.push({ ...params, id: generateUUID(), isApplied: false });
+                     result = { addedToInvoice: false };
+                 }
+                 saveDB(db);
+                 break;
+
+             case 'createCustomInvoice':
+                 // params: studentId, amount, type, description, dueDate, status (optional)
+                 const studentForInv = db.students.find(s => s.id === params.studentId);
+                 if (!studentForInv) throw new Error("Student not found");
+
+                 const invNum = `INV-${db.settings.lastInvoiceNo + 1}`;
+                 db.settings.lastInvoiceNo++;
+
+                 const newInvId = generateUUID();
+                 const isPaid = params.status === 'Paid';
+
+                 const newInvoice = {
+                     id: newInvId,
+                     invoiceNo: invNum,
+                     student_id: studentForInv.id,
+                     student_name: studentForInv.name,
+                     month_year: new Date().toISOString().slice(0, 7),
+                     due_date: params.dueDate || new Date().toISOString().split('T')[0],
+                     status: params.status || 'Pending',
+                     items: [{ description: `${params.type}: ${params.description}`, amount: params.amount }],
+                     amount_due: params.amount
+                 };
+
+                 db.invoices.push(newInvoice);
+
+                 // If creating a PAID invoice (Immediate Cash), also record transaction
+                 if (isPaid) {
+                     db.transactions.push({
+                         id: generateUUID(),
+                         type: 'Fee',
+                         amount: params.amount,
+                         date: new Date().toISOString().split('T')[0],
+                         entityId: studentForInv.id,
+                         description: `Instant Payment: ${params.type} (${invNum})`,
+                         status: 'Paid'
+                     });
+                 }
+
+                 saveDB(db);
+                 result = newInvoice;
+                 break;
+          
+             case 'generateInvoice':
+                 const { month_year, studentId } = params;
+                 let generatedCount = 0;
+                 
+                 // Target students: either single ID or ALL active students
+                 const targetStudents = studentId 
+                    ? db.students.filter(s => s.id === studentId) 
+                    : db.students.filter(s => s.status === 'Active');
+
+                 targetStudents.forEach(s => {
+                     // Check existing invoices for this month
+                     const existingInvoices = db.invoices.filter(i => i.student_id === s.id && i.month_year === month_year);
+                     // Check if Tuition has already been billed
+                     const hasTuitionInvoice = existingInvoices.some(inv => inv.items.some(item => item.description.startsWith('Tuition:') || item.description.includes('Therapy')));
+                     
+                     const items = [];
+
+                     // 1. Get Recurring Tuition Items (only if not already billed)
+                     if (!hasTuitionInvoice) {
+                         // A. Monthly Fee Students
+                         const monthlyCourses = db.student_courses.filter(sc => sc.studentId === s.id && sc.feeBasis === 'Monthly');
+                         monthlyCourses.forEach(c => {
+                             const courseDef = db.courses.find(cd => cd.id === c.courseId);
+                             items.push({ 
+                                 description: `${courseDef ? courseDef.name : 'Therapy'}`, 
+                                 amount: c.agreedFee 
+                             });
+                         });
+
+                         // B. Daily Fee Students (Calculate based on Attendance)
+                         const dailyCourses = db.student_courses.filter(sc => sc.studentId === s.id && sc.feeBasis === 'Daily');
+                         if (dailyCourses.length > 0) {
+                             // Fetch attendance for this student in this month
+                             const presentDays = db.attendance.filter(a => 
+                                 a.entityId === s.id && 
+                                 a.entityType === 'Student' &&
+                                 a.date.startsWith(month_year) && 
+                                 (a.status === 'Present' || a.status === 'Late')
+                             ).length;
+
+                             if (presentDays > 0) {
+                                 dailyCourses.forEach(c => {
+                                     const courseDef = db.courses.find(cd => cd.id === c.courseId);
+                                     const total = c.agreedFee * presentDays;
+                                     items.push({ 
+                                         description: `${courseDef ? courseDef.name : 'Therapy'} (${presentDays} days)`, 
+                                         amount: total 
+                                     });
+                                 });
+                             }
+                         }
+                     }
+
+                     // 2. Get Pending Adjustments (always check for these)
+                     const adjustments = db.student_adjustments.filter(a => a.studentId === s.id && !a.isApplied);
+                     adjustments.forEach(a => {
+                         items.push({ description: `${a.type}: ${a.description}`, amount: a.amount });
+                     });
+
+                     // Only generate if there is something to bill
+                     if (items.length > 0) {
+                         const total = items.reduce((sum, x) => sum + x.amount, 0);
+                         const newId = generateUUID();
+                         
+                         db.invoices.push({
+                             id: newId,
+                             invoiceNo: `INV-${db.settings.lastInvoiceNo + 1}`,
+                             student_id: s.id,
+                             student_name: s.name,
+                             month_year: month_year,
+                             due_date: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString().split('T')[0], // Due in 10 days
+                             status: 'Pending',
+                             items: items,
+                             amount_due: total
+                         });
+                         db.settings.lastInvoiceNo++;
+
+                         // Mark adjustments as applied
+                         adjustments.forEach(a => {
+                             const adjRecord = db.student_adjustments.find(x => x.id === a.id);
+                             if (adjRecord) {
+                                 adjRecord.isApplied = true;
+                                 adjRecord.invoiceId = newId;
+                             }
+                         });
+                         generatedCount++;
+                     }
+                 });
+                 
+                 saveDB(db);
+                 result = { generated: generatedCount, message: "Invoices Generated" };
+                 break;
+
+             case 'logEmployeePromotion':
+                 const { employee_id, designation_to, new_salary, date, reason } = params;
+                 
+                 // Find employee
+                 const empIdx = db.staff.findIndex(s => s.id === employee_id);
+                 if (empIdx === -1) throw new Error("Employee not found");
+                 
+                 const currentStaff = db.staff[empIdx];
+                 
+                 // Log to History
+                 if (!db.employee_history) db.employee_history = [];
+                 db.employee_history.push({
+                     id: generateUUID(),
+                     employee_id: employee_id,
+                     designation_from: currentStaff.designation,
+                     designation_to: designation_to,
+                     date: date,
+                     reason: reason
+                 });
+                 
+                 // Update Employee Profile
+                 db.staff[empIdx] = {
+                     ...currentStaff,
+                     designation: designation_to,
+                     salary: new_salary
+                 };
+                 
+                 saveDB(db);
+                 result = { success: true };
                  break;
 
              // Backup & Restore

@@ -148,9 +148,14 @@ const StudentProfile: React.FC = () => {
   const handleRemoveCourse = async (courseId: string) => {
       if(!window.confirm("Remove student from this therapy course?")) return;
       try {
+          // 'courseId' passed here is actually the enrollment record ID (StudentCourse.id)
           await api.request('removeStudentCourse', { id: courseId });
-          if (id) fetchStudentDetails(id);
-      } catch (e) { alert("Error removing course"); }
+          // Force refresh
+          if (id) await fetchStudentDetails(id);
+      } catch (e) { 
+          console.error(e);
+          alert("Error removing course"); 
+      }
   };
 
   const handleCourseSelection = (cId: string) => {
@@ -210,27 +215,47 @@ const StudentProfile: React.FC = () => {
       
       try {
           if (action === 'instant') {
-              await api.createTransaction({
-                  type: adjData.type as any, amount: Number(adjData.amount),
-                  date: new Date().toISOString().split('T')[0], entityId: id,
-                  status: 'Paid', description: adjData.description || adjData.type
-              }, user);
+              await api.request('createCustomInvoice', {
+                  studentId: id, 
+                  type: adjData.type, 
+                  amount: Number(adjData.amount),
+                  description: adjData.description,
+                  dueDate: new Date().toISOString().split('T')[0],
+                  status: 'Paid'
+              });
+              alert("Cash payment recorded & Invoice generated.");
+
           } else if (action === 'invoice') {
               await api.request('createCustomInvoice', {
-                  studentId: id, type: adjData.type, amount: Number(adjData.amount),
+                  studentId: id, 
+                  type: adjData.type, 
+                  amount: Number(adjData.amount),
                   description: adjData.description,
-                  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  status: 'Pending'
               });
+              alert("Separate invoice generated.");
+
           } else {
-              await api.request('addStudentAdjustment', {
-                  studentId: id, type: adjData.type, amount: Number(adjData.amount),
-                  description: adjData.description, date: new Date().toISOString().split('T')[0]
+              const result: any = await api.request('addStudentAdjustment', {
+                  studentId: id, 
+                  type: adjData.type, 
+                  amount: Number(adjData.amount),
+                  description: adjData.description, 
+                  date: new Date().toISOString().split('T')[0]
               });
+              
+              if(result.addedToInvoice) {
+                  alert("Added charge to existing Pending invoice.");
+              } else {
+                  alert("Charge queued for next month's invoice.");
+              }
           }
           setShowAdjModal(false);
           setAdjData({ type: 'Fine', amount: '', description: '' });
           fetchStudentDetails(id);
       } catch (e) {
+          console.error(e);
           alert("Error processing request");
       }
   };
@@ -260,8 +285,6 @@ const StudentProfile: React.FC = () => {
                           ) : (
                               <UserIcon size={48} className="text-slate-300" />
                           )}
-                          
-                          {/* Photo Edit Overlay */}
                           {user?.role === 'Admin' && (
                               <button 
                                   onClick={() => fileInputRef.current?.click()}
@@ -283,7 +306,6 @@ const StudentProfile: React.FC = () => {
                       </span>
                   </div>
                   <p className="text-primary-100 text-lg mb-4">Student ID: <span className="font-mono bg-primary-700/50 px-2 py-0.5 rounded">{student.id.substring(0,8)}</span></p>
-                  
                   <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm font-medium text-primary-50">
                       <div className="flex items-center gap-2 bg-primary-700/30 px-3 py-1.5 rounded-lg">
                           <Calendar size={16} /> Joined: {student.joiningDate}
@@ -297,7 +319,6 @@ const StudentProfile: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Sidebar: Contact & Info */}
         <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 text-lg mb-4 border-b border-slate-100 pb-3">Guardian Details</h3>
@@ -337,10 +358,8 @@ const StudentProfile: React.FC = () => {
             </div>
         </div>
 
-        {/* Main Content Area */}
         <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
-                {/* Tabs */}
                 <div className="flex border-b border-slate-200 bg-slate-50/50">
                     <button 
                         onClick={() => setActiveTab('finance')}
@@ -359,7 +378,6 @@ const StudentProfile: React.FC = () => {
                 <div className="p-6 md:p-8 flex-1">
                     {activeTab === 'finance' ? (
                         <div className="space-y-8">
-                            {/* Summary Cards */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
                                     <span className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Total Paid</span>
@@ -371,7 +389,6 @@ const StudentProfile: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Actions & Adjustments */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-slate-800 text-lg">Transaction History</h3>
@@ -407,7 +424,6 @@ const StudentProfile: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Invoice Table */}
                                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-slate-100 border-b border-slate-200">
@@ -462,7 +478,6 @@ const StudentProfile: React.FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-8">
-                            {/* Enrollment Section */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-slate-800 text-lg">Active Enrollments</h3>
@@ -492,7 +507,7 @@ const StudentProfile: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => handleRemoveCourse(c.id)} 
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveCourse(c.id); }}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                     title="Discontinue"
                                                 >
@@ -504,10 +519,8 @@ const StudentProfile: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Documents Section */}
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg mb-4 pt-6 border-t border-slate-100">Documents & Records</h3>
-                                
                                 <form onSubmit={handleFileUpload} className="bg-slate-50 p-5 rounded-xl border border-slate-200 mb-6">
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                                         <div className="md:col-span-5">
@@ -588,7 +601,6 @@ const StudentProfile: React.FC = () => {
           </div>
       )}
 
-      {/* Other Modals (Courses, Adjustments) remain unchanged ... */}
       {/* Course Enroll Modal */}
       {showCourseModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">

@@ -3,17 +3,18 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { api } from '../services/apiService';
 import { SchoolSettings, User } from '../types';
 import { AuthContext } from '../AuthContext';
-import { Save, Upload, User as UserIcon, Building, ShieldCheck, Landmark, Mail, Phone, MapPin, Globe, CreditCard, Lock, Database, Download, UploadCloud, AlertTriangle } from 'lucide-react';
+import { Save, Upload, User as UserIcon, Building, ShieldCheck, Landmark, Mail, Phone, MapPin, Globe, CreditCard, Lock, Database, Download, UploadCloud, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { user, updateUser, logout } = useContext(AuthContext);
   const [settings, setSettings] = useState<SchoolSettings>({
-    name: '', address: '', contact_no: '', email: '', logo_url: '', currency: '$',
+    name: '', address: '', contact_no: '', email: '', website: '', logo_url: '', currency: '$',
     bankName: '', bankAccountTitle: '', bankAccountNumber: '', bankIban: ''
   });
   const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'data'>('general');
   const [profileData, setProfileData] = useState({ name: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,6 +23,13 @@ const Settings: React.FC = () => {
         setProfileData({ name: user.name, password: '' });
     }
   }, [user]);
+
+  useEffect(() => {
+      if (notification) {
+          const timer = setTimeout(() => setNotification(null), 4000);
+          return () => clearTimeout(timer);
+      }
+  }, [notification]);
 
   const loadSettings = async () => {
     try {
@@ -32,11 +40,15 @@ const Settings: React.FC = () => {
     }
   };
 
+  const showNotification = (type: 'success' | 'error', message: string) => {
+      setNotification({ type, message });
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) { 
-          alert("File too large. Please upload an image smaller than 2MB.");
+          showNotification('error', "File too large. Please upload an image smaller than 2MB.");
           return;
       }
       const reader = new FileReader();
@@ -52,9 +64,9 @@ const Settings: React.FC = () => {
     setLoading(true);
     try {
       await api.request('updateSchoolSettings', settings);
-      alert("School settings updated successfully!");
+      showNotification('success', "Configuration saved successfully!");
     } catch (e) {
-      alert("Error saving settings");
+      showNotification('error', "Failed to save settings.");
     } finally {
       setLoading(false);
     }
@@ -72,9 +84,9 @@ const Settings: React.FC = () => {
       });
       updateUser(updatedUser);
       setProfileData(prev => ({ ...prev, password: '' })); 
-      alert("Profile updated successfully!");
+      showNotification('success', "Profile updated successfully!");
     } catch (e) {
-      alert("Error updating profile");
+      showNotification('error', "Error updating profile credentials.");
     } finally {
       setLoading(false);
     }
@@ -96,8 +108,9 @@ const Settings: React.FC = () => {
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
+          showNotification('success', "Backup file downloaded.");
       } catch (e) {
-          alert("Failed to export data.");
+          showNotification('error', "Failed to export data.");
       }
   };
 
@@ -118,15 +131,29 @@ const Settings: React.FC = () => {
               alert("Data restored successfully! The system will now reload.");
               window.location.reload();
           } catch (e) {
-              alert("Error importing file. Invalid format or corrupt data.");
+              showNotification('error', "Error importing file. Invalid format.");
           }
       };
       reader.readAsText(file);
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header Banner - MATCHING SIDEBAR COLOR */}
+    <div className="max-w-7xl mx-auto space-y-8 relative">
+      {/* Notification Toast */}
+      {notification && (
+          <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-5 duration-300 border ${
+              notification.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'
+          }`}>
+              {notification.type === 'success' ? <CheckCircle size={24} className="text-emerald-500" /> : <XCircle size={24} className="text-red-500" />}
+              <div>
+                  <h4 className="font-bold text-sm">{notification.type === 'success' ? 'Success' : 'Error'}</h4>
+                  <p className="text-sm opacity-90">{notification.message}</p>
+              </div>
+              <button onClick={() => setNotification(null)} className="ml-4 opacity-50 hover:opacity-100"><XCircle size={16}/></button>
+          </div>
+      )}
+
+      {/* Header Banner */}
       <div className="bg-[#eff4f9] rounded-3xl p-8 border border-slate-200/60 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-32 bg-white opacity-40 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
         <div className="relative z-10">
@@ -194,6 +221,7 @@ const Settings: React.FC = () => {
                                         <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
                                         <input required type="text" className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-base" value={settings.name} onChange={e => setSettings({...settings, name: e.target.value})} />
                                     </div>
+                                    <p className="text-xs text-slate-400 mt-1">For record keeping only. Not shown on invoices.</p>
                                 </div>
                                 <div>
                                     <label className="block text-base font-bold text-slate-900 mb-2">Official Email</label>
@@ -207,6 +235,13 @@ const Settings: React.FC = () => {
                                     <div className="relative">
                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
                                         <input required type="text" className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-base" value={settings.contact_no} onChange={e => setSettings({...settings, contact_no: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-base font-bold text-slate-900 mb-2">Website</label>
+                                    <div className="relative">
+                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+                                        <input type="text" className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-base" value={settings.website || ''} onChange={e => setSettings({...settings, website: e.target.value})} placeholder="www.yourschool.com" />
                                     </div>
                                 </div>
                                 <div>

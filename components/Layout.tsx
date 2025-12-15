@@ -31,7 +31,7 @@ const Layout: React.FC = () => {
         to={to}
         onClick={() => setIsSidebarOpen(false)}
         className={({ isActive }) =>
-          `group flex items-center justify-between px-4 py-3.5 mx-3 rounded-xl transition-all duration-300 mb-1.5 ${
+          `group flex items-center justify-between px-3 py-2.5 mx-3 rounded-lg transition-all duration-300 mb-1 ${
             isActive 
               ? 'bg-white text-primary-700 font-bold shadow-sm ring-1 ring-slate-200' 
               : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
@@ -41,10 +41,10 @@ const Layout: React.FC = () => {
         {({ isActive }) => (
           <>
             <div className="flex items-center gap-3">
-              <Icon size={22} className={`transition-colors ${isActive ? 'text-primary-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
-              <span className="text-[15px] font-semibold tracking-wide">{label}</span>
+              <Icon size={18} className={`transition-colors ${isActive ? 'text-primary-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
+              <span className="text-sm font-semibold tracking-wide">{label}</span>
             </div>
-            {isActive && <ChevronRight size={18} className="text-primary-500" />}
+            {isActive && <ChevronRight size={16} className="text-primary-500" />}
           </>
         )}
       </NavLink>
@@ -52,7 +52,7 @@ const Layout: React.FC = () => {
   };
 
   const SectionLabel = ({ label }: { label: string }) => (
-      <div className="px-7 mt-6 mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest opacity-80">
+      <div className="px-6 mt-5 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-80">
           {label}
       </div>
   );
@@ -62,25 +62,25 @@ const Layout: React.FC = () => {
       {/* Mobile Backdrop */}
       {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/20 z-30 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarOpen(false)} />}
 
-      {/* Sidebar - UPDATED COLOR */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-[#eff4f9] border-r border-slate-200/80 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-xl md:shadow-none flex flex-col`}>
+      {/* Sidebar - COMPACT WIDTH */}
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#eff4f9] border-r border-slate-200/80 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-xl md:shadow-none flex flex-col`}>
         {/* Brand Header */}
-        <div className="flex flex-col items-center justify-center p-6 border-b border-slate-200/60 min-h-[100px] relative">
+        <div className="flex flex-col items-center justify-center p-4 border-b border-slate-200/60 min-h-[80px] relative shrink-0">
           {schoolSettings?.logo_url ? (
-             <img src={schoolSettings.logo_url} className="w-full h-auto max-h-16 object-contain" alt="School Logo"/>
+             <img src={schoolSettings.logo_url} className="w-full h-auto max-h-12 object-contain" alt="School Logo"/>
           ) : (
-             <div className="flex items-center space-x-3 text-slate-800">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-500 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30 text-white">
-                    <GraduationCap size={24} />
+             <div className="flex items-center space-x-2 text-slate-800">
+                <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-500 rounded-lg flex items-center justify-center shadow-lg shadow-primary-500/30 text-white">
+                    <GraduationCap size={20} />
                 </div>
-                <span className="text-xl font-bold tracking-tight text-slate-900">{schoolSettings?.name || 'SchoolFlow'}</span>
+                <span className="text-lg font-bold tracking-tight text-slate-900">{schoolSettings?.name || 'SchoolFlow'}</span>
              </div>
           )}
-          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden absolute top-4 right-4 text-slate-500 hover:text-slate-700"><X size={24} /></button>
+          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden absolute top-4 right-4 text-slate-500 hover:text-slate-700"><X size={20} /></button>
         </div>
 
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1">
+        {/* Navigation - min-h-0 ensures it scrolls correctly in flex container */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-0.5 min-h-0">
           <nav>
             {user?.role === 'Admin' && <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />}
             
@@ -118,21 +118,36 @@ const Layout: React.FC = () => {
           </nav>
         </div>
         
-        {/* User Footer in Sidebar */}
-        <div className="p-4 bg-[#eef3f8] border-t border-slate-200/80">
-            <div className="flex items-center gap-3 px-2">
-                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-primary-600 font-bold text-sm shadow-sm">
-                    {user?.name.charAt(0)}
-                </div>
-                <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-bold text-slate-800 truncate">{user?.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{user?.role}</p>
-                </div>
-                <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors shadow-sm">
-                    <LogOut size={18} />
-                </button>
-            </div>
+        {/* DEVELOPER FOOTER - HARDCODED START */}
+        <div className="bg-slate-100 border-t border-slate-200 p-3 flex flex-col items-center justify-center shrink-0 gap-1.5">
+             {/* 
+                ================================================================
+                Developer Branding Section
+                
+                HOW TO CUSTOMIZE:
+                1. Link: Change the href in the <a> tag below.
+                2. Logo: Change the src in the <img> tag below.
+                ================================================================
+             */}
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Developed by</span>
+            
+            <a 
+                href="https://www.yourcompany.com" // <--- PUT YOUR WEBSITE LINK HERE
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="transition-transform hover:scale-105 active:scale-95"
+                title="Visit Developer Website"
+            >
+                {/* <--- PUT YOUR LOGO URL HERE in src attribute */}
+                <img 
+                    src="https://ui-avatars.com/api/?name=YC&background=0f172a&color=fff&size=48&font-size=0.4" 
+                    alt="Developer Logo" 
+                    className="w-8 h-8 rounded-md object-cover shadow-sm ring-1 ring-slate-900/5 hover:shadow-md transition-shadow" 
+                />
+            </a>
         </div>
+        {/* DEVELOPER FOOTER - HARDCODED END */}
+
       </aside>
 
       {/* Main Content Area */}
@@ -154,9 +169,22 @@ const Layout: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-4 relative z-10">
-                <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    <span className="text-xs font-semibold text-slate-600">System Online</span>
+                {/* User Profile moved to Header */}
+                <div className="flex items-center gap-3 pl-4 md:pl-6 md:border-l border-slate-200">
+                    <div className="text-right hidden md:block">
+                        <p className="text-sm font-bold text-slate-800 leading-tight">{user?.name}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{user?.role}</p>
+                    </div>
+                    <div className="w-9 h-9 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center text-primary-700 font-bold text-sm shadow-sm cursor-default">
+                        {user?.name.charAt(0)}
+                    </div>
+                    <button 
+                        onClick={handleLogout} 
+                        className="ml-2 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" 
+                        title="Logout"
+                    >
+                        <LogOut size={18} />
+                    </button>
                 </div>
             </div>
         </header>

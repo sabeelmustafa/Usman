@@ -3,9 +3,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/apiService';
 import { AuthContext } from '../AuthContext';
 import { Staff, SalarySlip, SchoolSettings, SalaryAdjustment, ClassLevel, Course } from '../types';
-import { UserPlus, Edit2, User, DollarSign, Printer, PlayCircle, Eye, PlusCircle, History, Search, RefreshCw, XCircle, Calendar, Trash2, Key, CheckSquare, Square, Wallet, Briefcase, Phone, BookOpen, CreditCard, MapPin } from 'lucide-react';
+import { UserPlus, Edit2, User, DollarSign, Printer, PlayCircle, Eye, PlusCircle, History, Search, RefreshCw, XCircle, Calendar, Trash2, Key, CheckSquare, Square, Wallet, Briefcase, Phone, BookOpen, CreditCard, MapPin, X, Clock } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import { useNavigate } from 'react-router-dom';
+import { SalarySlipTemplate } from './PrintView';
 
 const StaffComp: React.FC = () => {
   const { user } = useContext(AuthContext);
@@ -14,6 +15,7 @@ const StaffComp: React.FC = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [classes, setClasses] = useState<ClassLevel[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings | null>(null);
   
   // Staff Edit/Add Modal State
   const [showModal, setShowModal] = useState(false);
@@ -46,6 +48,9 @@ const StaffComp: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [payStatusFilter, setPayStatusFilter] = useState<'All' | 'Pending' | 'Paid'>('All');
   
+  // Payslip Preview Modal State
+  const [previewSlipData, setPreviewSlipData] = useState<{ slip: SalarySlip, staff: Staff } | null>(null);
+
   // History State
   const [historyData, setHistoryData] = useState<SalaryAdjustment[]>([]);
   const [historySearch, setHistorySearch] = useState('');
@@ -82,6 +87,7 @@ const StaffComp: React.FC = () => {
     ]);
     setStaff(s);
     setClasses(c);
+    setSchoolSettings(set);
     setCurrency(set.currency);
     setCourses(crs);
   };
@@ -93,7 +99,8 @@ const StaffComp: React.FC = () => {
   
   const fetchHistoryData = async () => {
       const adjs = await api.request<SalaryAdjustment[]>('getAdjustments');
-      setHistoryData(adjs.sort((a,b) => b.date - a.date)); 
+      // Fix sort to handle strings or numbers for date
+      setHistoryData(adjs.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())); 
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,17 +120,10 @@ const StaffComp: React.FC = () => {
   };
 
   const handleCnicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Strip non-digits
     const val = e.target.value.replace(/\D/g, '').slice(0, 13);
-    
     let formatted = val;
-    if (val.length > 5) {
-        formatted = val.slice(0, 5) + '-' + val.slice(5);
-    }
-    if (val.length > 12) {
-        formatted = formatted.slice(0, 13) + '-' + formatted.slice(13);
-    }
-    
+    if (val.length > 5) formatted = val.slice(0, 5) + '-' + val.slice(5);
+    if (val.length > 12) formatted = formatted.slice(0, 13) + '-' + formatted.slice(13);
     setFormData({ ...formData, cnic: formatted });
   };
 
@@ -143,12 +143,11 @@ const StaffComp: React.FC = () => {
           await api.request('addAdjustment', {
               ...txnData,
               amount: Number(txnData.amount),
-              id: txnEditingId // If ID exists, it updates
+              id: txnEditingId
           });
           alert(txnEditingId ? "Transaction updated" : "Transaction added successfully");
           setShowTxnModal(false);
           setTxnEditingId(null);
-          // Reset form but keep date
           setTxnData({ ...txnData, amount: '', description: '', staffId: '', type: 'Bonus' });
           if (['history', 'fines', 'bonuses', 'advance'].includes(activeTab)) fetchHistoryData();
       } catch (e) {
@@ -161,7 +160,7 @@ const StaffComp: React.FC = () => {
       setLoginData({
           staffId: s.id,
           username: s.name.toLowerCase().replace(/\s+/g, '') + Math.floor(Math.random()*100),
-          password: 'password123', // default
+          password: 'password123',
           role: s.designation.toLowerCase().includes('teacher') ? 'Teacher' : 'Staff',
           assignedClassIds: []
       });
@@ -181,7 +180,7 @@ const StaffComp: React.FC = () => {
               role: loginData.role,
               linkedEntityId: staffMember.id,
               assignedClassIds: loginData.role === 'Teacher' ? loginData.assignedClassIds : [],
-              assignedSubjects: [] // Could be extended to subjects
+              assignedSubjects: [] 
           });
           alert("Login account created successfully!");
           setShowLoginModal(false);
@@ -198,8 +197,6 @@ const StaffComp: React.FC = () => {
       });
   };
 
-  // ---
-
   const handleEditTxn = (adj: SalaryAdjustment) => {
       setTxnEditingId(adj.id);
       setTxnData({
@@ -215,7 +212,6 @@ const StaffComp: React.FC = () => {
   const handleCancelTxn = async (id: string) => {
       if(!window.confirm("Are you sure you want to cancel this transaction?")) return;
       await api.request('deleteAdjustment', { id });
-      // Crucial: refresh data
       fetchHistoryData();
   };
 
@@ -227,7 +223,6 @@ const StaffComp: React.FC = () => {
 
   const confirmShift = async () => {
       if(!newShiftMonth) return;
-      // Convert month YYYY-MM to YYYY-MM-01
       const newDateStr = `${newShiftMonth}-01`;
       await api.request('updateAdjustmentDate', { id: shiftData.id, newDate: newDateStr });
       setShowShiftModal(false);
@@ -257,16 +252,9 @@ const StaffComp: React.FC = () => {
   const handleRefreshSlip = async (slipId: string) => {
       setProcessing(true);
       try {
-          // This returns the NEW updated slip object
           const updatedSlip = await api.request('refreshSalarySlip', { slipId });
-          
-          // Update the list view
           fetchPayrollData();
-          
-          // If modal is open, update the modal content immediately
-          if(showSlipEdit) {
-              setEditingSlip(updatedSlip);
-          }
+          if(showSlipEdit) setEditingSlip(updatedSlip);
       } catch (e) {
           alert("Error refreshing slip. Check if adjustments were removed.");
       } finally {
@@ -278,7 +266,6 @@ const StaffComp: React.FC = () => {
       if(!window.confirm("Mark this salary slip as PAID? This will record the expense.")) return;
       try {
           await api.request('paySalarySlip', { id: slipId });
-          // Await to ensure UI sync
           await fetchPayrollData(); 
       } catch (e) {
           alert("Error updating payment status");
@@ -289,14 +276,13 @@ const StaffComp: React.FC = () => {
       if(!window.confirm("Delete this salary slip? Any applied bonuses/fines will be released back to the employee queue.")) return;
       try {
           await api.request('deleteSalarySlip', { id: slipId });
-          fetchPayrollData(); // MUST refresh list
+          fetchPayrollData(); 
       } catch (e) {
           alert("Error deleting slip");
       }
   };
 
   const openSlipEdit = async (slip: any) => {
-      // Must fetch fresh details to include adjustments
       const details: any = await api.request('getSlipById', { id: slip.id });
       setEditingSlip(details);
       setShowSlipEdit(true);
@@ -306,33 +292,37 @@ const StaffComp: React.FC = () => {
       const choice = window.confirm(
           `Remove '${adj.description}'?\n\nOK = Cancel Fine Permanently\nCancel = Postpone to Next Month`
       );
-      
       try {
           if (choice) {
               await api.request('deleteAdjustment', { id: adj.id });
           } else {
               await api.request('postponeAdjustment', { id: adj.id });
           }
-          // IMPORTANT: Trigger refresh immediately to recalculate totals and get new slip state
           await handleRefreshSlip(editingSlip.id);
-      } catch (e) {
-          console.error(e);
-      }
+      } catch (e) { console.error(e); }
   };
 
   const handleRemoveBonusFromSlip = async (adj: SalaryAdjustment) => {
       if(!window.confirm(`Remove bonus '${adj.description}'? It will be set to pending for future.`)) return;
       try {
-          // Setting date to next month's 1st effectively postpones it
           const nextMonth = new Date();
           nextMonth.setMonth(nextMonth.getMonth() + 1);
           nextMonth.setDate(1);
           await api.request('updateAdjustmentDate', { id: adj.id, newDate: nextMonth.toISOString().split('T')[0] }); 
-          // Trigger refresh immediately
           await handleRefreshSlip(editingSlip.id);
-      } catch (e) {
-          console.error(e);
+      } catch (e) { console.error(e); }
+  };
+
+  // Preview Logic
+  const openSlipPreview = (slip: any) => {
+      const employee = staff.find(s => s.id === slip.staffId);
+      if (employee) {
+          setPreviewSlipData({ slip, staff: employee });
       }
+  };
+
+  const closePreview = () => {
+      setPreviewSlipData(null);
   };
 
   // Helper to get staff name from ID
@@ -358,79 +348,6 @@ const StaffComp: React.FC = () => {
       return (s.status || 'Pending') === payStatusFilter;
   });
 
-  const AdjustmentTable = () => (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                      <th className="px-6 py-4 font-bold text-slate-700">Date</th>
-                      <th className="px-6 py-4 font-bold text-slate-700">Staff Member</th>
-                      <th className="px-6 py-4 font-bold text-slate-700">Type</th>
-                      <th className="px-6 py-4 font-bold text-slate-700">Description</th>
-                      <th className="px-6 py-4 font-bold text-slate-700">Amount</th>
-                      <th className="px-6 py-4 font-bold text-slate-700">Status</th>
-                      <th className="px-6 py-4 font-bold text-slate-700 text-right">Actions</th>
-                  </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                  {getFilteredData().length === 0 ? (
-                      <tr><td colSpan={7} className="p-8 text-center text-slate-500">No records found.</td></tr>
-                  ) : (
-                      getFilteredData().map(h => {
-                          const staffInfo = getStaffName(h.staffId);
-                          return (
-                              <tr key={h.id} className="hover:bg-slate-50">
-                                  <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{new Date(h.date).toLocaleDateString()}</td>
-                                  <td className="px-6 py-4">
-                                      <div className="font-bold text-slate-800">{staffInfo.name}</div>
-                                      <div className="text-xs text-slate-500">{staffInfo.role}</div>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                      <span className={`px-2 py-1 rounded text-xs font-bold border ${
-                                          h.type === 'Bonus' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                          h.type === 'Advance' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                          'bg-red-50 text-red-700 border-red-200'
-                                      }`}>
-                                          {h.type}
-                                      </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={h.description}>{h.description}</td>
-                                  <td className="px-6 py-4 font-mono font-medium text-slate-800">{currency}{h.amount.toLocaleString()}</td>
-                                  <td className="px-6 py-4">
-                                      {h.isApplied ? (
-                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                              Applied ({h.appliedMonthYear})
-                                          </span>
-                                      ) : (
-                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                                              Pending
-                                          </span>
-                                      )}
-                                  </td>
-                                  <td className="px-6 py-4 text-right">
-                                      {!h.isApplied && (
-                                          <div className="flex justify-end gap-2">
-                                              <button onClick={() => handleEditTxn(h)} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded hover:bg-slate-50" title="Edit">
-                                                  <Edit2 size={16}/>
-                                              </button>
-                                              <button onClick={() => handleShiftTxn(h.id, h.date)} className="p-1.5 text-slate-400 hover:text-purple-600 border border-slate-200 rounded hover:bg-slate-50" title="Shift Month">
-                                                  <Calendar size={16}/>
-                                              </button>
-                                              <button onClick={() => handleCancelTxn(h.id)} className="p-1.5 text-slate-400 hover:text-red-600 border border-slate-200 rounded hover:bg-slate-50" title="Cancel">
-                                                  <XCircle size={16}/>
-                                              </button>
-                                          </div>
-                                      )}
-                                  </td>
-                              </tr>
-                          );
-                      })
-                  )}
-              </tbody>
-          </table>
-      </div>
-  );
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center">
@@ -439,7 +356,7 @@ const StaffComp: React.FC = () => {
            <p className="text-slate-500">Manage employees and monthly salary processing.</p>
         </div>
         {user?.role === 'Admin' && activeTab === 'directory' && (
-          <button onClick={() => { setEditingId(null); setFormData(initialFormState); setShowModal(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <button onClick={() => { setEditingId(null); setFormData(initialFormState); setShowModal(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm font-bold hover:bg-primary-700 transition-colors">
             <UserPlus size={20} /> Add Staff
           </button>
         )}
@@ -457,7 +374,7 @@ const StaffComp: React.FC = () => {
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
               <tab.icon size={18} /> {tab.label}
             </button>
@@ -480,7 +397,7 @@ const StaffComp: React.FC = () => {
                 {staff.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/staff/${s.id}`)}>
                     <td className="px-6 py-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0 border border-slate-200">
                         {s.profilePhotoBase64 ? <img src={s.profilePhotoBase64} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><User size={20} className="text-slate-400"/></div>}
                     </div>
                     <div>
@@ -553,7 +470,7 @@ const StaffComp: React.FC = () => {
                   <div className="flex gap-3 flex-wrap">
                       <button
                           onClick={() => { setTxnEditingId(null); setTxnData({...txnData, staffId: '', type: 'Bonus', amount: '', description: ''}); setShowTxnModal(true); }}
-                          className="bg-white text-slate-700 border border-slate-300 px-4 py-2.5 rounded-lg hover:bg-slate-50 shadow-sm flex items-center gap-2 font-bold"
+                          className="bg-white text-slate-700 border border-slate-300 px-4 py-2.5 rounded-lg hover:bg-slate-50 shadow-sm flex items-center gap-2 font-bold transition-colors"
                       >
                           <PlusCircle size={20} className="text-emerald-600"/> Add Transaction
                       </button>
@@ -561,7 +478,7 @@ const StaffComp: React.FC = () => {
                       <button 
                          onClick={handleBulkGenerate}
                          disabled={processing}
-                         className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2 font-bold disabled:opacity-50"
+                         className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2 font-bold disabled:opacity-50 transition-colors"
                       >
                           {processing ? 'Processing...' : <><PlayCircle size={20} /> Generate All</>}
                       </button>
@@ -569,7 +486,7 @@ const StaffComp: React.FC = () => {
                       <button 
                          onClick={() => window.open(`#/print/batch-salary-slip/${payrollMonth}`, '_blank')}
                          disabled={generatedSlips.length === 0}
-                         className="bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 shadow-sm flex items-center gap-2 font-bold disabled:opacity-50"
+                         className="bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 shadow-sm flex items-center gap-2 font-bold disabled:opacity-50 transition-colors"
                       >
                           <Printer size={20} /> Print Batch
                       </button>
@@ -589,25 +506,25 @@ const StaffComp: React.FC = () => {
                       <table className="w-full text-left text-sm">
                           <thead className="bg-white border-b border-slate-100">
                               <tr>
-                                  <th className="px-6 py-3 text-slate-600">Employee</th>
-                                  <th className="px-6 py-3 text-slate-600">Base Salary</th>
-                                  <th className="px-6 py-3 text-slate-600">Additions</th>
-                                  <th className="px-6 py-3 text-slate-600">Deductions</th>
+                                  <th className="px-6 py-3 text-slate-600 font-bold">Employee</th>
+                                  <th className="px-6 py-3 text-slate-600 font-bold">Base Salary</th>
+                                  <th className="px-6 py-3 text-slate-600 font-bold">Additions</th>
+                                  <th className="px-6 py-3 text-slate-600 font-bold">Deductions</th>
                                   <th className="px-6 py-3 text-slate-600 font-bold">Net Pay</th>
-                                  <th className="px-6 py-3 text-slate-600">Status</th>
-                                  <th className="px-6 py-3 text-right text-slate-600">Action</th>
+                                  <th className="px-6 py-3 text-slate-600 font-bold">Status</th>
+                                  <th className="px-6 py-3 text-right text-slate-600 font-bold">Action</th>
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                               {filteredSlips.map(slip => (
-                                  <tr key={slip.id} className="hover:bg-slate-50">
+                                  <tr key={slip.id} className="hover:bg-slate-50 transition-colors">
                                       <td className="px-6 py-4">
                                           <div className="font-bold text-slate-800">{slip.staff_name}</div>
                                           <div className="text-xs text-slate-500">{slip.staff_designation}</div>
                                       </td>
                                       <td className="px-6 py-4 text-slate-600">{currency}{slip.baseSalary.toLocaleString()}</td>
-                                      <td className="px-6 py-4 text-emerald-600">+{currency}{slip.totalBonuses.toLocaleString()}</td>
-                                      <td className="px-6 py-4 text-red-600">-{currency}{slip.totalDeductions.toLocaleString()}</td>
+                                      <td className="px-6 py-4 text-emerald-600 font-bold">+{currency}{slip.totalBonuses.toLocaleString()}</td>
+                                      <td className="px-6 py-4 text-red-600 font-bold">-{currency}{slip.totalDeductions.toLocaleString()}</td>
                                       <td className="px-6 py-4 font-bold text-slate-800 text-lg">{currency}{slip.netSalary.toLocaleString()}</td>
                                       <td className="px-6 py-4">
                                           <span className={`px-2 py-1 rounded text-xs font-bold border ${
@@ -622,7 +539,7 @@ const StaffComp: React.FC = () => {
                                                   <>
                                                       <button 
                                                           onClick={() => handleMarkPaid(slip.id)}
-                                                          className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 font-bold"
+                                                          className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 font-bold shadow-sm transition-colors"
                                                       >
                                                           Pay
                                                       </button>
@@ -650,11 +567,11 @@ const StaffComp: React.FC = () => {
                                                   </>
                                               )}
                                               <button 
-                                                  onClick={() => window.open(`#/print/salary-slip/${slip.id}`, '_blank')}
+                                                  onClick={() => openSlipPreview(slip)}
                                                   className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded border border-slate-200"
-                                                  title="Print Single Slip"
+                                                  title="View Payslip"
                                               >
-                                                  <Printer size={16} />
+                                                  <Eye size={16} />
                                               </button>
                                           </div>
                                       </td>
@@ -667,10 +584,105 @@ const StaffComp: React.FC = () => {
           </div>
       )}
 
-      {/* Staff Modal */}
+      {/* History Tabs View */}
+      {['history', 'fines', 'bonuses', 'advance'].includes(activeTab) && (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="relative w-full max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
+                    <input 
+                        type="text" 
+                        placeholder="Search employee name..." 
+                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                        value={historySearch}
+                        onChange={e => setHistorySearch(e.target.value)}
+                    />
+                </div>
+                <div className="flex gap-2">
+                     <button
+                          onClick={() => { setTxnEditingId(null); setTxnData({...txnData, staffId: '', type: 'Bonus', amount: '', description: ''}); setShowTxnModal(true); }}
+                          className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-700 font-bold shadow-sm transition-colors"
+                      >
+                          <PlusCircle size={20} /> Add New
+                      </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="px-6 py-4 text-slate-700 font-bold">Date</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold">Employee</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold">Type</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold">Description</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold text-right">Amount</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold text-center">Status</th>
+                            <th className="px-6 py-4 text-slate-700 font-bold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {getFilteredData().length === 0 ? (
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-500">No records found.</td></tr>
+                        ) : (
+                            getFilteredData().map(adj => {
+                                const employee = staff.find(s => s.id === adj.staffId);
+                                return (
+                                    <tr key={adj.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 text-slate-600">{new Date(adj.date).toLocaleDateString()}</td>
+                                        <td className="px-6 py-4 font-medium text-slate-800">
+                                            {employee?.name || 'Unknown'}
+                                            <div className="text-xs text-slate-400">{employee?.designation}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold border ${
+                                                adj.type === 'Bonus' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                adj.type === 'Fine' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                'bg-blue-50 text-blue-700 border-blue-200'
+                                            }`}>
+                                                {adj.type}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-600">{adj.description}</td>
+                                        <td className={`px-6 py-4 text-right font-mono font-bold ${
+                                            adj.type === 'Bonus' ? 'text-emerald-600' : 'text-red-600'
+                                        }`}>
+                                            {adj.type === 'Bonus' ? '+' : '-'}{currency}{adj.amount.toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {adj.isApplied ? (
+                                                <span className="text-xs font-bold text-emerald-600 flex items-center justify-center gap-1">
+                                                    <CheckSquare size={14}/> Applied
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs font-bold text-orange-500 flex items-center justify-center gap-1">
+                                                    <Clock size={14}/> Pending
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            {!adj.isApplied && (
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => handleEditTxn(adj)} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded hover:bg-white transition-colors"><Edit2 size={16}/></button>
+                                                    <button onClick={() => handleCancelTxn(adj.id)} className="p-1.5 text-slate-400 hover:text-red-600 border border-slate-200 rounded hover:bg-white transition-colors"><Trash2 size={16}/></button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      )}
+
+      {/* Staff Modal (Add/Edit) */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* ... Modal content ... */}
             <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
@@ -799,6 +811,218 @@ const StaffComp: React.FC = () => {
                     <button type="button" onClick={() => setShowModal(false)} className="px-6 py-2.5 border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
                     <button type="submit" className="px-8 py-2.5 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 shadow-md transition-colors">Save Details</button>
                 </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Login Creation Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              {/* ... Modal content ... */}
+              <h3 className="text-lg font-bold text-slate-800 mb-4">Create System Login</h3>
+              <form onSubmit={handleLoginCreate} className="space-y-4">
+                  {/* ... inputs ... */}
+                  <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                      <input required type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                      <input required type="text" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                      <select className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2" value={loginData.role} onChange={e => setLoginData({...loginData, role: e.target.value})}>
+                          <option value="Staff">Staff</option>
+                          <option value="Teacher">Teacher</option>
+                          <option value="Accountant">Accountant</option>
+                          <option value="Admin">Admin</option>
+                      </select>
+                  </div>
+                  {loginData.role === 'Teacher' && (
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Assigned Classes</label>
+                          <div className="max-h-32 overflow-y-auto border border-slate-300 rounded-lg p-2">
+                              {classes.map(c => (
+                                  <div key={c.id} onClick={() => toggleLoginClass(c.id)} className="flex items-center gap-2 p-1 hover:bg-slate-50 cursor-pointer">
+                                      {loginData.assignedClassIds.includes(c.id) ? <CheckSquare size={16} className="text-primary-600"/> : <Square size={16} className="text-slate-400"/>}
+                                      <span className="text-sm">{c.name}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+                  <div className="flex justify-end gap-2 pt-2">
+                      <button type="button" onClick={() => setShowLoginModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                      <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">Create Account</button>
+                  </div>
+              </form>
+          </div>
+        </div>
+      )}
+
+      {/* Shift Date Modal */}
+      {showShiftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+               {/* ... Modal content ... */}
+               <h3 className="text-lg font-bold text-slate-800 mb-4">Shift Transaction Month</h3>
+               <p className="text-sm text-slate-600 mb-4">Current Date: {shiftData.current}</p>
+               <div className="mb-4">
+                   <label className="block text-sm font-medium text-slate-700 mb-1">New Month</label>
+                   <input type="month" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2" value={newShiftMonth} onChange={e => setNewShiftMonth(e.target.value)} />
+               </div>
+               <div className="flex justify-end gap-2">
+                   <button onClick={() => setShowShiftModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                   <button onClick={confirmShift} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Shift</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {/* Slip Edit Modal */}
+      {showSlipEdit && editingSlip && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                  {/* ... Modal content ... */}
+                  <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                      <h3 className="font-bold text-slate-800">Edit Salary Slip</h3>
+                      <button onClick={() => { setShowSlipEdit(false); setEditingSlip(null); }}><XCircle className="text-slate-400 hover:text-slate-600" size={24}/></button>
+                  </div>
+                  <div className="p-6 overflow-y-auto">
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                              <span className="text-xs font-bold text-slate-500 uppercase">Employee</span>
+                              <p className="font-bold">{editingSlip.staff_name}</p>
+                          </div>
+                          <div>
+                              <span className="text-xs font-bold text-slate-500 uppercase">Month</span>
+                              <p>{editingSlip.monthYear}</p>
+                          </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                          <div>
+                              <h4 className="font-bold text-sm text-slate-700 border-b pb-1 mb-2">Adjustments Included</h4>
+                              {editingSlip.adjustments && editingSlip.adjustments.length > 0 ? (
+                                  <div className="space-y-2">
+                                      {editingSlip.adjustments.map((adj: any) => (
+                                          <div key={adj.id} className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200">
+                                              <div>
+                                                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded mr-2 ${adj.type === 'Bonus' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{adj.type}</span>
+                                                  <span className="text-sm text-slate-700">{adj.description}</span>
+                                              </div>
+                                              <div className="flex items-center gap-3">
+                                                  <span className="font-mono text-sm font-bold">{adj.amount}</span>
+                                                  <button 
+                                                      onClick={() => adj.type === 'Bonus' ? handleRemoveBonusFromSlip(adj) : handleRemoveDeductionFromSlip(adj)}
+                                                      className="text-red-500 hover:text-red-700 p-1"
+                                                      title="Remove/Postpone"
+                                                  >
+                                                      <XCircle size={16}/>
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : (
+                                  <p className="text-sm text-slate-400 italic">No adjustments applied.</p>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+                  <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                      <button onClick={() => { setShowSlipEdit(false); setEditingSlip(null); }} className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium">Close</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Payslip Preview Modal (New) */}
+      {previewSlipData && schoolSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                  <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-50 rounded-t-xl">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <Eye size={20} className="text-slate-500"/> Payslip Preview
+                      </h3>
+                      <button onClick={closePreview} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto bg-slate-100 p-6 flex justify-center">
+                      <div className="bg-white shadow-lg w-full max-w-[210mm] min-h-[297mm] p-8 origin-top transform scale-90 sm:scale-100">
+                          <SalarySlipTemplate slip={previewSlipData.slip} staff={previewSlipData.staff} settings={schoolSettings} />
+                      </div>
+                  </div>
+
+                  <div className="p-4 border-t border-slate-200 bg-white rounded-b-xl flex justify-end gap-3">
+                      <button onClick={closePreview} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Close</button>
+                      <button 
+                          onClick={() => window.open(`#/print/salary-slip/${previewSlipData.slip.id}`, '_blank')}
+                          className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 flex items-center gap-2"
+                      >
+                          <Printer size={18}/> Print
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Adjustment Modal */}
+      {showTxnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            {/* ... Modal content ... */}
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Add Salary Adjustment</h3>
+            <form onSubmit={handleTxnSubmit} className="space-y-4">
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Staff Member</label>
+                  <select 
+                      required
+                      disabled={!!txnEditingId}
+                      className="w-full bg-slate-50 text-slate-900 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500"
+                      value={txnData.staffId}
+                      onChange={e => setTxnData({...txnData, staffId: e.target.value})}
+                  >
+                      <option value="">Select Employee...</option>
+                      {staff.filter(s => s.status === 'Active').map(s => (
+                          <option key={s.id} value={s.id}>{s.name} ({s.designation})</option>
+                      ))}
+                  </select>
+               </div>
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                  <div className="grid grid-cols-3 gap-2">
+                     {['Bonus', 'Advance', 'Fine'].map(t => (
+                        <button 
+                           key={t} type="button" 
+                           onClick={() => setTxnData({...txnData, type: t})}
+                           className={`py-2 text-sm font-bold rounded border ${txnData.type === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300'}`}
+                        >
+                           {t}
+                        </button>
+                     ))}
+                  </div>
+               </div>
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                  <input required type="number" className="w-full bg-slate-50 text-slate-900 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500" value={txnData.amount} onChange={e => setTxnData({...txnData, amount: e.target.value})} />
+               </div>
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <input required type="text" className="w-full bg-slate-50 text-slate-900 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500" value={txnData.description} onChange={e => setTxnData({...txnData, description: e.target.value})} />
+               </div>
+               <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Effective Date</label>
+                  <input required type="date" className="w-full bg-slate-50 text-slate-900 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500" value={txnData.date} onChange={e => setTxnData({...txnData, date: e.target.value})} />
+                  <p className="text-xs text-slate-400 mt-1">This determines which month's payroll will include this adjustment.</p>
+               </div>
+               <div className="flex justify-end space-x-3 pt-2">
+                <button type="button" onClick={() => setShowTxnModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">Add Adjustment</button>
+              </div>
             </form>
           </div>
         </div>

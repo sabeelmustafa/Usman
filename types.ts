@@ -125,6 +125,7 @@ export interface SchoolSettings {
   address: string;
   contact_no: string;
   email: string;
+  website?: string;
   logo_url?: string;
   currency: string;
   // Bank Details
@@ -210,8 +211,16 @@ export interface SalarySlip {
   baseSalary: number;
   totalBonuses: number;
   totalDeductions: number;
+  attendanceDeduction: number; // New: Auto-calculated deduction for absence
   netSalary: number;
   adjustmentIds: string[];
   generationDate: number;
   status: 'Pending' | 'Paid';
+  attendanceStats?: { 
+     totalDays: number; 
+     present: number; 
+     late: number; 
+     absent: number; 
+     paidLeave: number; 
+  };
 }
