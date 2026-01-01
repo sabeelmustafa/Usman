@@ -13,10 +13,15 @@ jobs:
     - name: 🚚 Get latest code
       uses: actions/checkout@v3
 
-    - name: 📂 Sync files
+- name: 📂 Sync files
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        # server-dir: /public_html/  # Usually public_html for cPanel
+        local-dir: ./dist/            # This sends the INSIDE of dist to the server
+        server-dir: /ims.diversory.center/ 
+        dangerous-clean-slate: false   # This prevents it from deleting your db.json
+        exclude: |
+          db.json
+          api.php
