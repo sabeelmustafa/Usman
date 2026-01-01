@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/apiService';
 import { AuditLogEntry } from '../types';
@@ -57,7 +56,7 @@ const AuditLogs: React.FC = () => {
               {filteredLogs.map(log => (
                 <tr key={log.id} className="hover:bg-slate-50">
                   <td className="px-6 py-3 text-slate-500 font-mono text-xs">
-                    {new Date(log.timestamp).toLocaleString()}
+                    {new Date(log.timestamp).toLocaleDateString('en-GB')} {new Date(log.timestamp).toLocaleTimeString('en-GB')}
                   </td>
                   <td className="px-6 py-3 font-medium text-slate-800">{log.userName}</td>
                   <td className="px-6 py-3">
@@ -65,13 +64,15 @@ const AuditLogs: React.FC = () => {
                       log.action === 'DELETE' ? 'bg-red-50 text-red-700 border-red-200' :
                       log.action === 'UPDATE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                       log.action === 'CREATE' ? 'bg-green-50 text-green-700 border-green-200' :
-                      'bg-slate-100 text-slate-600'
+                      'bg-slate-50 text-slate-700 border-slate-200'
                     }`}>
                       {log.action}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-slate-600 uppercase text-xs font-semibold">{log.resource}</td>
-                  <td className="px-6 py-3 text-slate-600 max-w-md truncate">{log.details}</td>
+                  <td className="px-6 py-3 text-slate-600">{log.resource}</td>
+                  <td className="px-6 py-3 text-slate-500 max-w-xs truncate" title={log.details}>
+                    {log.details || '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>

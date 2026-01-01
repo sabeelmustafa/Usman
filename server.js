@@ -11,11 +11,23 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DB_FILE = path.join(__dirname, 'db.json');
 
+console.log(`Starting Server...`);
+console.log(`Root Directory: ${__dirname}`);
+
 app.use(cors());
 // Increase limit for Base64 image/file uploads
 app.use(express.json({ limit: '50mb' }));
 
-const generateUUID = () => crypto.randomUUID();
+const generateUUID = () => {
+    // Robust UUID generation that works on old and new Node versions
+    if (crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
 
 // --- DATABASE MANAGEMENT ---
 const loadDB = () => {
@@ -28,21 +40,26 @@ const loadDB = () => {
   return null;
 };
 
+// DEBOUNCED WRITE LOGIC
+// Prevents 508 Resource Limit errors by throttling disk writes
+let writeTimer = null;
+
 const saveDB = (data) => {
-  try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-  } catch(e) {
-      console.error("Error saving DB", e);
+  if (writeTimer) {
+      clearTimeout(writeTimer);
   }
+
+  writeTimer = setTimeout(() => {
+      try {
+          fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+      } catch(e) {
+          console.error("Error saving DB", e);
+      }
+  }, 2000); // 2000ms delay
 };
 
-let db = loadDB();
-
-// Initialize DB if empty
-if (!db) {
-  const c1 = generateUUID();
-  const s1 = generateUUID();
-  db = {
+// Define the full structure of a fresh database
+const getEmptyDB = () => ({
     users: [
        { id: generateUUID(), username: 'admin', password: 'admin', role: 'Admin', name: 'System Admin' }
     ],
@@ -78,8 +95,47 @@ if (!db) {
     exams: [],
     exam_results: [],
     employee_history: []
-  };
-  saveDB(db);
+});
+
+let db = loadDB();
+
+// --- INITIALIZATION & MIGRATION LOGIC ---
+if (!db) {
+  // Scenario 1: No DB exists. Create fresh.
+  console.log("No DB found. Creating new database.");
+  db = getEmptyDB();
+  // Force immediate write on creation
+  try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch(e) { console.error("Init Error", e); }
+} else {
+  // Scenario 2: DB exists. Check for missing keys (Migration)
+  // This ensures if we add new features (e.g. 'library_books'), the old DB gets that array added without data loss.
+  const emptyDB = getEmptyDB();
+  let modified = false;
+  
+  Object.keys(emptyDB).forEach(key => {
+      if (db[key] === undefined) {
+          console.log(`Migrating DB: Adding missing key '${key}'`);
+          db[key] = emptyDB[key];
+          modified = true;
+      }
+  });
+
+  // Ensure settings object has all new fields
+  if (db.settings) {
+      Object.keys(emptyDB.settings).forEach(settingKey => {
+          if (db.settings[settingKey] === undefined) {
+              db.settings[settingKey] = emptyDB.settings[settingKey];
+              modified = true;
+          }
+      });
+  }
+
+  if (modified) {
+      saveDB(db);
+      console.log("Database schema updated successfully.");
+  }
 }
 
 // --- LOGGING ---
@@ -92,11 +148,21 @@ const logAudit = (userId, userName, action, resource, details = "") => {
     });
 };
 
+// --- HEALTH CHECK ENDPOINT ---
+// Use this to verify server is running: yourdomain.com/api/health
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'online', 
+        timestamp: new Date().toISOString(),
+        db_status: db ? 'loaded' : 'error'
+    });
+});
+
 // --- RPC ENDPOINT ---
 app.post('/api/rpc', (req, res) => {
     const { action, params } = req.body;
     let result = {};
-    const user = params.user || { id: 'sys', name: 'System' }; // Context user
+    // const user = params.user || { id: 'sys', name: 'System' }; // Context user
     
     try {
         switch (action) {
@@ -271,11 +337,14 @@ app.post('/api/rpc', (req, res) => {
             case 'getAllCourses': result = db.courses; break;
             case 'manageCourse':
                 if (params.type === 'add') {
+                    if (!db.courses) db.courses = [];
                     db.courses.push({ ...params.data, id: generateUUID() });
                 } else if (params.type === 'edit') {
+                    if (!db.courses) db.courses = [];
                     const idx = db.courses.findIndex(c => c.id === params.data.id);
                     if(idx !== -1) db.courses[idx] = { ...db.courses[idx], ...params.data };
                 } else if (params.type === 'delete') {
+                    if (!db.courses) db.courses = [];
                     db.courses = db.courses.filter(c => c.id !== params.id);
                 }
                 saveDB(db);
@@ -364,6 +433,20 @@ app.post('/api/rpc', (req, res) => {
                     saveDB(db);
                 }
                 break;
+            
+            case 'deleteInvoice':
+                 const invToDel = db.invoices.find(i => i.id === params.id);
+                 if(invToDel) {
+                     // Release adjustments linked to this invoice so they can be re-billed
+                     const linkedAdjs = db.student_adjustments.filter(a => a.invoiceId === params.id);
+                     linkedAdjs.forEach(a => {
+                         a.isApplied = false;
+                         delete a.invoiceId;
+                     });
+                     db.invoices = db.invoices.filter(i => i.id !== params.id);
+                     saveDB(db);
+                 }
+                 break;
 
             case 'getInvoiceDetails':
                 const inv = db.invoices.find(i => i.id === params.id);
@@ -671,10 +754,23 @@ app.post('/api/rpc', (req, res) => {
             // --- DATA ---
             case 'exportDatabase': result = db; break;
             case 'importDatabase': 
-                if (params.data && params.data.users) {
-                    db = params.data;
-                    saveDB(db);
+                if (!params.data || !params.data.users || !Array.isArray(params.data.users)) {
+                    throw new Error("Invalid backup file format. Missing 'users' array.");
                 }
+                db = params.data;
+                saveDB(db);
+                result = { success: true, message: "Database imported successfully." };
+                break;
+
+            case 'factoryReset':
+                // Completely wipe in-memory data and persist to disk
+                db = getEmptyDB();
+                // Factory reset should ideally happen immediately to ensure clean state
+                try {
+                    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+                } catch(e) { console.error("Reset Error", e); }
+                result = { success: true };
+                console.log("FACTORY RESET PERFORMED");
                 break;
 
             default:
@@ -688,10 +784,14 @@ app.post('/api/rpc', (req, res) => {
 });
 
 // --- STATIC FILES (PRODUCTION) ---
-// Serve the built React files from 'dist' folder
+// Serve the built React files from 'dist' folder.
+// cPanel apps usually have server.js in root and dist folder in root.
 const distPath = path.join(__dirname, 'dist');
+
 if (fs.existsSync(distPath)) {
+    console.log(`Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
+    
     // SPA Fallback for all other routes
     app.get('*', (req, res) => {
         // Ensure we don't return HTML for API calls that were not handled
@@ -702,10 +802,11 @@ if (fs.existsSync(distPath)) {
     });
 } else {
     // Basic fallback if dist doesn't exist (e.g., API-only mode or dev)
-    console.log("Warning: 'dist' folder not found. Serving API only.");
+    console.log(`Warning: 'dist' folder not found at ${distPath}. Serving API only.`);
+    app.get('/', (req, res) => res.send('SchoolFlow API Server is Running. Frontend "dist" folder is missing.'));
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Data file: ${DB_FILE}`);
 });

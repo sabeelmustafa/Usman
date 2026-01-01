@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/apiService';
@@ -97,6 +96,16 @@ const StudentProfile: React.FC = () => {
     } catch (e) {
       alert("Error updating payment status");
     }
+  };
+
+  const handleDeleteInvoice = async (invId: string) => {
+      if (!window.confirm("Delete this invoice?")) return;
+      try {
+          await api.request('deleteInvoice', { id: invId });
+          if (id) fetchStudentDetails(id);
+      } catch (e) {
+          alert("Error deleting invoice");
+      }
   };
 
   const handleGenerateInvoice = async () => {
@@ -308,7 +317,7 @@ const StudentProfile: React.FC = () => {
                   <p className="text-primary-100 text-lg mb-4">Student ID: <span className="font-mono bg-primary-700/50 px-2 py-0.5 rounded">{student.id.substring(0,8)}</span></p>
                   <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm font-medium text-primary-50">
                       <div className="flex items-center gap-2 bg-primary-700/30 px-3 py-1.5 rounded-lg">
-                          <Calendar size={16} /> Joined: {student.joiningDate}
+                          <Calendar size={16} /> Joined: {new Date(student.joiningDate).toLocaleDateString('en-GB')}
                       </div>
                       <div className="flex items-center gap-2 bg-primary-700/30 px-3 py-1.5 rounded-lg">
                           <MapPin size={16} /> {student.address}
@@ -452,12 +461,21 @@ const StudentProfile: React.FC = () => {
                                                         <td className="px-5 py-4 text-right">
                                                             <div className="flex justify-end gap-2">
                                                                 {inv.status === InvoiceStatus.PENDING && (
-                                                                    <button 
-                                                                        onClick={() => handleMarkPaid(inv.id)} 
-                                                                        className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm"
-                                                                    >
-                                                                        <Check size={14}/> Paid?
-                                                                    </button>
+                                                                    <>
+                                                                        <button 
+                                                                            onClick={() => handleMarkPaid(inv.id)} 
+                                                                            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm"
+                                                                        >
+                                                                            <Check size={14}/> Paid?
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => handleDeleteInvoice(inv.id)} 
+                                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded border border-slate-200 transition-colors"
+                                                                            title="Delete Invoice"
+                                                                        >
+                                                                            <Trash2 size={16}/>
+                                                                        </button>
+                                                                    </>
                                                                 )}
                                                                 <button 
                                                                     onClick={() => openPreview(inv.id)} 
@@ -549,7 +567,7 @@ const StudentProfile: React.FC = () => {
                                                 <div>
                                                     <p className="font-bold text-slate-800">{f.fileName}</p>
                                                     <p className="text-xs text-slate-500 flex items-center gap-2">
-                                                        <span>{new Date(f.uploadDate).toLocaleDateString()}</span>
+                                                        <span>{new Date(f.uploadDate).toLocaleDateString('en-GB')}</span>
                                                         <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                                                         <span>{f.description}</span>
                                                     </p>

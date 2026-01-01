@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/apiService';
 import { Invoice, InvoiceStatus, SchoolSettings, FinancialTransaction, Student } from '../types';
-import { CreditCard, Printer, Search, RefreshCcw, FilePlus, X, Check, Eye, User, Calendar, Zap } from 'lucide-react';
+import { CreditCard, Printer, Search, RefreshCcw, FilePlus, X, Check, Eye, User, Calendar, Zap, Trash2 } from 'lucide-react';
 import { InvoiceTemplate } from './PrintView';
 
 const Fees: React.FC = () => {
@@ -99,6 +98,16 @@ const Fees: React.FC = () => {
     } catch (e) {
       alert("Error updating status");
     }
+  };
+
+  const handleDeleteInvoice = async (id: string) => {
+      if (!window.confirm("Delete this invoice? Any linked adjustments (fines/fees) will be un-applied and can be billed again later.")) return;
+      try {
+          await api.request('deleteInvoice', { id });
+          fetchData();
+      } catch (e) {
+          alert("Error deleting invoice");
+      }
   };
 
   const openPreview = async (id: string) => {
@@ -215,12 +224,21 @@ const Fees: React.FC = () => {
                           <td className="px-6 py-4 text-right">
                              <div className="flex justify-end items-center gap-2">
                                  {inv.status === 'Pending' && (
-                                     <button 
-                                        onClick={() => handleMarkPaid(inv.id)} 
-                                        className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-colors"
-                                     >
-                                         <Check size={14}/> Paid?
-                                     </button>
+                                     <>
+                                         <button 
+                                            onClick={() => handleMarkPaid(inv.id)} 
+                                            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-colors"
+                                         >
+                                             <Check size={14}/> Paid?
+                                         </button>
+                                         <button 
+                                            onClick={() => handleDeleteInvoice(inv.id)} 
+                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded transition-colors"
+                                            title="Delete Invoice"
+                                         >
+                                             <Trash2 size={16}/>
+                                         </button>
+                                     </>
                                  )}
                                  <button 
                                     onClick={() => openPreview(inv.id)} 
@@ -257,7 +275,7 @@ const Fees: React.FC = () => {
                       {transactions.length === 0 ? <tr><td colSpan={4} className="p-8 text-center text-slate-500">No payment records found.</td></tr> :
                       transactions.map(t => (
                           <tr key={t.id} className="hover:bg-slate-50">
-                              <td className="px-6 py-4 text-slate-600">{t.date}</td>
+                              <td className="px-6 py-4 text-slate-600">{new Date(t.date).toLocaleDateString('en-GB')}</td>
                               <td className="px-6 py-4 font-medium text-slate-800">{t.description}</td>
                               <td className="px-6 py-4 text-right font-bold text-emerald-600">+{currency}{t.amount.toLocaleString()}</td>
                               <td className="px-6 py-4 text-center">

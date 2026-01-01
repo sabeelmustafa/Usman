@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/apiService';
 import { AuthContext } from '../AuthContext';
@@ -629,7 +628,7 @@ const StaffComp: React.FC = () => {
                                 const employee = staff.find(s => s.id === adj.staffId);
                                 return (
                                     <tr key={adj.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 text-slate-600">{new Date(adj.date).toLocaleDateString()}</td>
+                                        <td className="px-6 py-4 text-slate-600">{new Date(adj.date).toLocaleDateString('en-GB')}</td>
                                         <td className="px-6 py-4 font-medium text-slate-800">
                                             {employee?.name || 'Unknown'}
                                             <div className="text-xs text-slate-400">{employee?.designation}</div>

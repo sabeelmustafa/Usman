@@ -1,6 +1,6 @@
 {
   "name": "schoolflow",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,18 +14,18 @@
   "dependencies": {
     "@google/genai": "latest",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "lucide-react": "^0.363.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.3",
-    "recharts": "^2.12.3"
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
+    "lucide-react": "^0.363.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "recharts": "^2.12.3",
     "typescript": "^5.2.2",
     "vite": "^6.0.0"
   },

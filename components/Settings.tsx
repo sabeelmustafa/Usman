@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { api } from '../services/apiService';
 import { SchoolSettings, User } from '../types';
 import { AuthContext } from '../AuthContext';
-import { Save, Upload, User as UserIcon, Building, ShieldCheck, Landmark, Mail, Phone, MapPin, Globe, CreditCard, Lock, Database, Download, UploadCloud, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Upload, User as UserIcon, Building, ShieldCheck, Landmark, Mail, Phone, MapPin, Globe, CreditCard, Lock, Database, Download, UploadCloud, AlertTriangle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { user, updateUser, logout } = useContext(AuthContext);
@@ -116,29 +116,82 @@ const Settings: React.FC = () => {
 
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!window.confirm("WARNING: This will overwrite ALL existing data (students, staff, finances) with the backup file. This action cannot be undone. Continue?")) {
-          e.target.value = ''; // Reset
+      if (!file) {
+          console.log("No file selected in handleImportData");
           return;
       }
+      
+      console.log("File selected:", file.name, file.size);
+
+      if (!window.confirm("WARNING: This will overwrite ALL existing data (students, staff, finances) with the backup file. This action cannot be undone. Continue?")) {
+          // Reset input if cancelled
+          e.target.value = '';
+          return;
+      }
+
+      setLoading(true);
 
       const reader = new FileReader();
       reader.onload = async (event) => {
           try {
-              const json = JSON.parse(event.target?.result as string);
-              await api.importDatabase(json);
-              alert("Data restored successfully! The system will now reload.");
+              console.log("File read successfully. Parsing JSON...");
+              const jsonContent = event.target?.result as string;
+              if (!jsonContent) throw new Error("File is empty.");
+
+              const parsedData = JSON.parse(jsonContent);
+              console.log("JSON Parsed. Validating structure...");
+
+              // Validate structure on client before sending
+              if (!parsedData.users || !Array.isArray(parsedData.users)) {
+                  throw new Error("Invalid Backup File: Missing 'users' data. This does not look like a valid backup file.");
+              }
+              
+              console.log("Structure valid. Sending to server...");
+              await api.importDatabase(parsedData);
+              console.log("Import successful!");
+              
+              alert("✅ Success: Data restored successfully!\n\nThe page will now reload.");
               window.location.reload();
-          } catch (e) {
-              showNotification('error', "Error importing file. Invalid format.");
+          } catch (err: any) {
+              console.error("Import Error:", err);
+              alert(`❌ Import Failed:\n\n${err.message || "Unknown error occurred during import."}`);
+          } finally {
+              setLoading(false);
+              // Reset input
+              if (fileInputRef.current) fileInputRef.current.value = '';
           }
       };
+      
+      reader.onerror = () => {
+          console.error("FileReader Error:", reader.error);
+          alert("❌ Error reading file.");
+          setLoading(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+
       reader.readAsText(file);
+  };
+  
+  const handleFactoryReset = async () => {
+      if (!window.confirm("DANGER: This will delete ALL data (Students, Fees, Staff, Settings). \n\nThe system will be reset to a fresh install state. \n\nAre you sure you want to continue?")) {
+          return;
+      }
+      if (!window.confirm("Double Check: This cannot be undone. \n\nClick OK to WIPE EVERYTHING.")) {
+          return;
+      }
+      
+      try {
+          await api.factoryReset();
+          alert("System has been reset successfully. You will be logged out.");
+          logout();
+          window.location.href = "/";
+      } catch (e) {
+          alert("Error resetting system. Please try again or restart the server manually.");
+      }
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 relative">
+    <div className="max-w-7xl mx-auto space-y-8 relative pb-10">
       {/* Notification Toast */}
       {notification && (
           <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-5 duration-300 border ${
@@ -339,58 +392,85 @@ const Settings: React.FC = () => {
       )}
 
       {activeTab === 'data' && (
-        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col justify-between">
-                <div>
-                    <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
-                        <Download size={32} />
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">Backup System Data</h2>
-                    <p className="text-slate-500 leading-relaxed mb-8">
-                        Create a complete snapshot of your system. This includes student records, financial transactions, staff details, and settings. Download the JSON file to keep your data safe.
-                    </p>
-                </div>
-                <button 
-                    onClick={handleExportData}
-                    className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
-                >
-                    <Download size={20} /> Download Backup File
-                </button>
-            </div>
-
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-full -mr-10 -mt-10 z-0"></div>
-                <div className="relative z-10">
-                    <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 mb-6">
-                        <UploadCloud size={32} />
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">Restore Data</h2>
-                    <p className="text-slate-500 leading-relaxed mb-6">
-                        Upload a previously backed-up JSON file to restore your system.
-                    </p>
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex gap-3 mb-8">
-                        <AlertTriangle className="text-red-600 shrink-0" size={20}/>
-                        <p className="text-xs text-red-700 font-medium">
-                            Warning: This action will <strong>permanently overwrite</strong> all current data. This cannot be undone.
+        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col justify-between">
+                    <div>
+                        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
+                            <Download size={32} />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-900 mb-2">Backup System Data</h2>
+                        <p className="text-slate-500 leading-relaxed mb-8">
+                            Create a complete snapshot of your system. This includes student records, financial transactions, staff details, and settings. Download the JSON file to keep your data safe.
                         </p>
                     </div>
-                </div>
-                
-                <div>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleImportData} 
-                        accept=".json" 
-                        className="hidden" 
-                    />
                     <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 shadow-xl flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+                        onClick={handleExportData}
+                        className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
                     >
-                        <UploadCloud size={20} /> Select Backup File
+                        <Download size={20} /> Download Backup File
                     </button>
                 </div>
+
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col justify-between relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-full -mr-10 -mt-10 z-0"></div>
+                    <div className="relative z-10">
+                        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 mb-6">
+                            <UploadCloud size={32} />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-900 mb-2">Restore Data</h2>
+                        <p className="text-slate-500 leading-relaxed mb-6">
+                            Upload a previously backed-up JSON file to restore your system.
+                        </p>
+                        <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex gap-3 mb-8">
+                            <AlertTriangle className="text-red-600 shrink-0" size={20}/>
+                            <p className="text-xs text-red-700 font-medium">
+                                Warning: This action will <strong>permanently overwrite</strong> all current data. This cannot be undone.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleImportData}
+                            onClick={(e) => { (e.target as HTMLInputElement).value = ''; }} 
+                            accept=".json" 
+                            className="hidden" 
+                        />
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={loading}
+                            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 shadow-xl flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 disabled:opacity-70"
+                        >
+                            <UploadCloud size={20} /> {loading ? 'Restoring...' : 'Select Backup File'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Factory Reset Section */}
+            <div className="bg-red-50 rounded-3xl border border-red-100 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-red-600 shadow-sm shrink-0">
+                         <Trash2 size={24} />
+                     </div>
+                     <div>
+                         <h3 className="text-lg font-bold text-red-800">Factory Reset System</h3>
+                         <p className="text-red-600/80 text-sm mt-1 max-w-lg">
+                             This will completely wipe the database (students, staff, fees, settings) and reset it to a fresh install state. 
+                             This solves "Zombie Data" issues if server memory is out of sync with disk.
+                             <br/><strong>This action is irreversible.</strong>
+                         </p>
+                     </div>
+                </div>
+                <button 
+                   onClick={handleFactoryReset}
+                   className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-500/20 whitespace-nowrap transition-colors"
+                >
+                    Reset System
+                </button>
             </div>
         </div>
       )}

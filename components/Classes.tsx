@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/apiService';
 import { Course, SchoolSettings } from '../types';
-import { Edit2, Trash2, Save, X, Activity } from 'lucide-react';
+import { Edit2, Trash2, Save, X, Activity, Loader2 } from 'lucide-react';
 
 const Courses: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [currency, setCurrency] = useState('$');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<Partial<Course>>({ name: '', capacity: 10, defaultMonthlyFee: 0, defaultDailyFee: 0 });
@@ -44,6 +44,7 @@ const Courses: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (editingId) {
         await api.request('manageCourse', { type: 'edit', data: { ...formData, id: editingId } });
@@ -54,6 +55,8 @@ const Courses: React.FC = () => {
       fetchData(); 
     } catch (e: any) {
       alert(e.message || "Error saving course");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -101,8 +104,8 @@ const Courses: React.FC = () => {
               </div>
               
               <div className="flex space-x-2 pt-2">
-                <button type="submit" className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 flex justify-center items-center gap-2">
-                  <Save size={18} /> {editingId ? 'Update' : 'Save Therapy'}
+                <button type="submit" disabled={saving} className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 flex justify-center items-center gap-2 disabled:opacity-70">
+                  {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} {editingId ? 'Update' : 'Save Therapy'}
                 </button>
                 {editingId && (
                   <button type="button" onClick={handleCancel} className="px-3 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200">
@@ -116,7 +119,8 @@ const Courses: React.FC = () => {
 
         {/* List */}
         <div className="lg:col-span-2 space-y-4">
-             {courses.length === 0 && <div className="text-center py-10 text-slate-500">No therapy courses found. Add one to get started.</div>}
+             {loading && <div className="text-center py-10 text-slate-500"><Loader2 className="animate-spin mx-auto mb-2" />Loading...</div>}
+             {!loading && courses.length === 0 && <div className="text-center py-10 text-slate-500">No therapy courses found. Add one to get started.</div>}
              
              {courses.map(c => (
                <div key={c.id} className={`bg-white p-5 rounded-xl border transition-all ${editingId === c.id ? 'border-primary-500 ring-1 ring-primary-500 shadow-md' : 'border-slate-200 shadow-sm'}`}>

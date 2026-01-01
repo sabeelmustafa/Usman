@@ -38,9 +38,11 @@ const ProtectedRoute = ({ children, allowedRoles }: { children?: React.ReactNode
 const SESSION_KEY = 'schoolflow_therapy_session';
 
 const App: React.FC = () => {
+  // PRODUCTION MODE: Default to null (Logged Out)
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Restore session on load
   useEffect(() => {
     try {
         let storedUser = localStorage.getItem(SESSION_KEY);
@@ -53,7 +55,7 @@ const App: React.FC = () => {
     } catch (e) {
         console.error("Failed to parse session", e);
     } finally {
-        setTimeout(() => setLoading(false), 500); 
+        setLoading(false);
     }
   }, []);
 
@@ -90,7 +92,7 @@ const App: React.FC = () => {
     return (
       <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-500 gap-3">
         <Loader2 className="animate-spin text-primary-600" size={40} />
-        <span className="font-medium text-lg">Loading Therapy System...</span>
+        <span className="font-medium text-lg">Loading System...</span>
       </div>
     );
   }

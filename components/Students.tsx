@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/apiService';
 import { AuthContext } from '../AuthContext';
 import { Student, Invoice, Course } from '../types';
 import { Search, Plus, Edit, Eye, User, DollarSign, Trash2, BookOpen, Calendar, MapPin, Phone, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ImageUploader from './ImageUploader';
 
 const Students: React.FC = () => {
@@ -27,10 +26,23 @@ const Students: React.FC = () => {
   const [newCourses, setNewCourses] = useState<{ courseId: string, feeBasis: 'Monthly' | 'Daily', agreedFee: number }[]>([]);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Check for navigation state to auto-open modal (from Dashboard)
+  useEffect(() => {
+      if (location.state && (location.state as any).openAdd) {
+          setEditingId(null);
+          setFormData(initialFormState);
+          setNewCourses([]);
+          setShowModal(true);
+          // Clear state to prevent reopening on refresh
+          window.history.replaceState({}, document.title);
+      }
+  }, [location]);
 
   const fetchData = async () => {
     const [sData, iData, cData] = await Promise.all([
@@ -168,7 +180,7 @@ const Students: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-slate-600">{s.parentDetails.name} <br/><span className="text-xs">{s.parentDetails.contact}</span></td>
-                  <td className="px-6 py-4 text-slate-600">{s.joiningDate}</td>
+                  <td className="px-6 py-4 text-slate-600">{new Date(s.joiningDate).toLocaleDateString('en-GB')}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-500'}`}>
                       {s.status}

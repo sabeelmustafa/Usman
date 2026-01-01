@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
@@ -118,32 +117,27 @@ const Layout: React.FC = () => {
           </nav>
         </div>
         
-        {/* DEVELOPER FOOTER - MODIFIED FOR WIDER LOGO */}
+        {/* DEVELOPER FOOTER - MODIFIED FOR DYNAMIC LOGO */}
         <div className="bg-slate-100 border-t border-slate-200 p-3 flex flex-col items-center justify-center shrink-0 gap-1.5">
-             {/* 
-                ================================================================
-                Developer Branding Section
-                ================================================================
-             */}
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Developed by</span>
             
             <a 
-                href="https://www.yourcompany.com" 
+                href="https://www.fiverr.com/sabeelmustafa/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="transition-transform hover:scale-105 active:scale-95"
+                className="transition-transform hover:scale-105 active:scale-95 w-full flex justify-center"
                 title="Visit Developer Website"
             >
                 {/* 
                     UPDATED IMAGE STYLING:
-                    - h-10: Sets fixed height to 2.5rem (40px)
-                    - w-auto: Allows width to scale naturally based on image ratio
-                    - object-contain: Ensures the whole logo fits without cropping
+                    - w-auto max-w-full: Allows full width usage if needed
+                    - max-h-11: ~30% smaller than previous max-h-16 (16->11 is ~31% reduction)
+                    - object-contain: Preserves aspect ratio
                 */}
                 <img 
-                    src="https://ui-avatars.com/api/?name=YC&background=0f172a&color=fff&size=48&font-size=0.4&length=2" 
+                    src="https://admin.diversory.center/vvlogo.png" 
                     alt="Developer Logo" 
-                    className="h-10 w-auto max-w-[180px] object-contain hover:opacity-80 transition-opacity" 
+                    className="w-auto h-auto max-w-full max-h-11 object-contain hover:opacity-80 transition-opacity" 
                 />
             </a>
         </div>
@@ -164,7 +158,7 @@ const Layout: React.FC = () => {
                         {location.pathname === '/' ? 'Home' : location.pathname.split('/')[1].replace('-', ' ')}
                      </h2>
                      <p className="text-[10px] text-slate-500 font-medium">
-                        {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                      </p>
                 </div>
             </div>
