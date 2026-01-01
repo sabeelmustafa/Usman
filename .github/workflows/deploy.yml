@@ -3,25 +3,37 @@ name: Deploy SchoolFlow to cPanel
 on:
   push:
     branches:
-      - main  # This triggers the deploy whenever you push to the 'main' branch
+      - main  # Only deploys when you push to the main branch
 
 jobs:
   web-deploy:
-    name: 🎉 Deploy
+    name: 🎉 Build and Sync
     runs-on: ubuntu-latest
     steps:
     - name: 🚚 Get latest code
       uses: actions/checkout@v3
 
-- name: 📂 Sync files
+    - name: 🏗️ Install and Build
+      run: |
+        npm install
+        npm run build
+
+    - name: 📂 Sync files to Server
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./dist/            # This sends the INSIDE of dist to the server
-        server-dir: /ims.diversory.center/ 
-        dangerous-clean-slate: false   # This prevents it from deleting your db.json
+        # Local source: only the contents of the build folder
+        local-dir: ./dist/
+        # Server destination: your specific subfolder
+        server-dir: /ims.diversory.center/
+        # Safety: do not delete files on the server that aren't in the dist folder
+        dangerous-clean-slate: false
+        # Exclude critical files so they are never overwritten or touched
         exclude: |
-          db.json
-          api.php
+          **/db.json
+          **/api.php
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
