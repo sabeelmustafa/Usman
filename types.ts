@@ -134,6 +134,10 @@ export interface SchoolSettings {
   bankAccountNumber?: string;
   bankIban?: string;
   lastInvoiceNo?: number; // For auto-increment
+  
+  // Work Calendar
+  weeklyOffDays?: number[]; // 0 = Sunday, 1 = Monday, etc.
+  holidays?: string[]; // Array of 'YYYY-MM-DD' strings
 }
 
 // Dashboard Helper Interface
@@ -218,9 +222,11 @@ export interface SalarySlip {
   status: 'Pending' | 'Paid';
   attendanceStats?: { 
      totalDays: number; 
+     workingDays: number;
      present: number; 
      late: number; 
      absent: number; 
      paidLeave: number; 
+     holidays: number;
   };
 }

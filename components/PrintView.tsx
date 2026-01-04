@@ -268,19 +268,19 @@ export const SalarySlipTemplate: React.FC<{ slip: any, staff: Staff, settings: S
                         <div className="grid grid-cols-4 gap-4 text-center">
                             <div>
                                 <span className="block text-xl font-bold text-slate-700">{stats.totalDays}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Days</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Days in Month</span>
                             </div>
                             <div>
                                 <span className="block text-xl font-bold text-emerald-600">{stats.present}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Present</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Payable Days</span>
+                            </div>
+                            <div>
+                                <span className="block text-xl font-bold text-red-500">{stats.absent}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Unpaid Leaves</span>
                             </div>
                             <div>
                                 <span className="block text-xl font-bold text-orange-500">{stats.late}</span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Late</span>
-                            </div>
-                            <div>
-                                <span className="block text-xl font-bold text-red-500">{stats.absent}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Absent</span>
                             </div>
                         </div>
                     </div>
@@ -308,7 +308,7 @@ export const SalarySlipTemplate: React.FC<{ slip: any, staff: Staff, settings: S
                         {/* Attendance Deduction */}
                         {slip.attendanceDeduction > 0 && (
                             <tr className="border-b border-slate-100">
-                                <td className="py-4 text-slate-700 font-medium">Absence / Unpaid Leave ({stats.absent} days)</td>
+                                <td className="py-4 text-slate-700 font-medium">Unpaid Leave Deduction ({stats.absent} days)</td>
                                 <td className="py-4"><span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-red-50 text-red-600">Deduction</span></td>
                                 <td className="py-4 text-right font-mono font-bold text-red-600">-{settings.currency}{slip.attendanceDeduction.toLocaleString()}</td>
                             </tr>
@@ -340,7 +340,7 @@ export const SalarySlipTemplate: React.FC<{ slip: any, staff: Staff, settings: S
                                 )}
                                 {slip.totalDeductions > 0 && (
                                     <tr className="border-b border-slate-100">
-                                        <td className="py-4 text-slate-700 font-medium">Other Deductions (Fines, Advance)</td>
+                                        <td className="py-4 text-slate-700 font-medium">Other Deductions</td>
                                         <td className="py-4"><span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-red-50 text-red-600">Deduction</span></td>
                                         <td className="py-4 text-right font-mono font-bold text-red-600">-{settings.currency}{slip.totalDeductions.toLocaleString()}</td>
                                     </tr>
@@ -410,6 +410,7 @@ const PrintView: React.FC = () => {
              setData(slip);
         } else if (type === 'batch-salary-slip') {
              const slips = await api.request<SalarySlip[]>('getSlipsByMonth', { monthYear: id });
+             // Fetch details for all slips
              const fullSlips = await Promise.all(slips.map((s:any) => api.request('getSlipById', { id: s.id })));
              setData(fullSlips);
         } else if (type === 'exam-schedule') {
@@ -429,10 +430,12 @@ const PrintView: React.FC = () => {
   }, [type, id]);
 
   useEffect(() => {
-     if (!loading && data) {
-         setTimeout(() => window.print(), 1000);
+     if (!loading && data && settings) {
+         // Add a small delay to ensure rendering matches state before printing
+         const timer = setTimeout(() => window.print(), 800);
+         return () => clearTimeout(timer);
      }
-  }, [loading, data]);
+  }, [loading, data, settings]);
 
   if (loading || !settings) return (
       <div className="flex h-screen items-center justify-center gap-3 text-slate-500">
@@ -440,7 +443,7 @@ const PrintView: React.FC = () => {
       </div>
   );
 
-  if (!data) return <div className="p-8 text-center text-red-500">Document not found.</div>;
+  if (!data) return <div className="p-8 text-center text-red-500">Document not found or data is missing.</div>;
 
   return (
     <div className="min-h-screen bg-slate-100 p-8 print:p-0 print:bg-white">

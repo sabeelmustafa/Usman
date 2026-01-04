@@ -19,43 +19,41 @@ import PrintView from './components/PrintView';
 import { AuthContext } from './AuthContext';
 import { Loader2 } from 'lucide-react';
 
+// Default Admin User for seamless access
+const DEFAULT_ADMIN: User = { 
+  id: 'u-1', 
+  username: 'admin', 
+  role: 'Admin', 
+  name: 'Super Admin' 
+};
+
+// Simplified Protected Route Component (Bypassing auth)
 const ProtectedRoute = ({ children, allowedRoles }: { children?: React.ReactNode, allowedRoles?: Role[] }) => {
   const { user } = React.useContext(AuthContext);
-  const location = useLocation();
-
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    const home = user.role === 'Admin' ? '/dashboard' : '/my-profile';
-    return <Navigate to={home} replace />;
-  }
-
+  
+  // Auth is disabled: directly returning children.
+  // In a real app, you'd check if user exists, but here we default to Super Admin.
   return <>{children}</>;
 };
 
 const SESSION_KEY = 'schoolflow_therapy_session';
 
 const App: React.FC = () => {
-  // PRODUCTION MODE: Default to null (Logged Out)
-  const [user, setUser] = useState<User | null>(null);
+  // Initializing with DEFAULT_ADMIN to remove login screen
+  const [user, setUser] = useState<User | null>(DEFAULT_ADMIN);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on load
   useEffect(() => {
+    // Try to load existing session if it exists, otherwise use default
     try {
-        let storedUser = localStorage.getItem(SESSION_KEY);
-        if (!storedUser) {
-            storedUser = sessionStorage.getItem(SESSION_KEY);
-        }
+        let storedUser = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
         if (storedUser) {
           setUser(JSON.parse(storedUser));
         }
     } catch (e) {
         console.error("Failed to parse session", e);
     } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 300);
     }
   }, []);
 
@@ -81,18 +79,20 @@ const App: React.FC = () => {
     setUser(null);
     localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
+    // Refresh to reset to DEFAULT_ADMIN state for this "no-login" version
+    window.location.reload();
   };
 
   const getDefaultRoute = () => {
     if (user?.role === 'Admin') return '/dashboard';
-    return '/my-profile';
+    return '/dashboard'; // Default to dashboard for all in no-login mode
   };
 
   if (loading) {
     return (
       <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-500 gap-3">
         <Loader2 className="animate-spin text-primary-600" size={40} />
-        <span className="font-medium text-lg">Loading System...</span>
+        <span className="font-medium text-lg">Loading SchoolFlow...</span>
       </div>
     );
   }
@@ -101,26 +101,27 @@ const App: React.FC = () => {
     <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          {/* Redirect any login attempt to dashboard */}
+          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
           <Route path="/print/:type/:id" element={<PrintView />} />
           
-          <Route path="/" element={<ProtectedRoute allowedRoles={['Admin', 'Teacher', 'Staff', 'Accountant']}><Layout /></ProtectedRoute>}>
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to={getDefaultRoute()} replace />} />
             
-            <Route path="dashboard" element={<ProtectedRoute allowedRoles={['Admin']}><Dashboard /></ProtectedRoute>} />
-            <Route path="my-profile" element={<ProtectedRoute allowedRoles={['Staff', 'Teacher', 'Admin', 'Accountant']}><EmployeeProfile /></ProtectedRoute>} />
-            <Route path="students" element={<ProtectedRoute allowedRoles={['Admin', 'Teacher', 'Accountant']}><Students /></ProtectedRoute>} />
-            <Route path="students/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Teacher', 'Accountant']}><StudentProfile /></ProtectedRoute>} />
-            <Route path="attendance" element={<ProtectedRoute allowedRoles={['Admin', 'Teacher', 'Staff']}><Attendance /></ProtectedRoute>} />
+            <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="my-profile" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
+            <Route path="students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
+            <Route path="students/:id" element={<ProtectedRoute><StudentProfile /></ProtectedRoute>} />
+            <Route path="attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
             
-            <Route path="users" element={<ProtectedRoute allowedRoles={['Admin']}><Users /></ProtectedRoute>} />
-            <Route path="settings" element={<ProtectedRoute allowedRoles={['Admin']}><Settings /></ProtectedRoute>} />
-            <Route path="classes" element={<ProtectedRoute allowedRoles={['Admin']}><Courses /></ProtectedRoute>} />
-            <Route path="logs" element={<ProtectedRoute allowedRoles={['Admin']}><AuditLogs /></ProtectedRoute>} />
+            <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+            <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="classes" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+            <Route path="logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
             
-            <Route path="fees" element={<ProtectedRoute allowedRoles={['Admin', 'Accountant']}><Fees /></ProtectedRoute>} />
-            <Route path="staff" element={<ProtectedRoute allowedRoles={['Admin', 'Accountant']}><Staff /></ProtectedRoute>} />
-            <Route path="staff/:id" element={<ProtectedRoute allowedRoles={['Admin', 'Accountant']}><EmployeeProfile /></ProtectedRoute>} />
+            <Route path="fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
+            <Route path="staff" element={<ProtectedRoute><Staff /></ProtectedRoute>} />
+            <Route path="staff/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

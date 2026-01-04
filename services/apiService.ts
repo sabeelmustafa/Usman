@@ -8,7 +8,7 @@ import {
 
 // --- CONFIGURATION ---
 // SET THIS TO TRUE FOR PREVIEW ENVIRONMENTS (No Backend)
-const USE_MOCK = false; 
+const USE_MOCK = true; 
 
 const getApiUrl = () => '/api/rpc';
 const API_URL = getApiUrl();
@@ -51,7 +51,9 @@ const getEmptyDB = () => ({
       bankName: '',
       bankAccountTitle: '',
       bankAccountNumber: '',
-      bankIban: ''
+      bankIban: '',
+      weeklyOffDays: [0, 6], // Sunday (0), Saturday (6)
+      holidays: []
     },
     transactions: [],
     attendance: [],
@@ -68,7 +70,13 @@ const getEmptyDB = () => ({
 const loadMockDB = () => {
     const stored = localStorage.getItem(MOCK_STORAGE_KEY);
     if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        // Migration: Ensure new settings exist
+        if (parsed.settings && !parsed.settings.weeklyOffDays) {
+            parsed.settings.weeklyOffDays = [0, 6];
+            parsed.settings.holidays = [];
+        }
+        return parsed;
     }
     const fresh = getEmptyDB();
     saveMockDB(fresh);
@@ -298,6 +306,11 @@ async function mockRequestHandler<T>(action: string, params: any = {}): Promise<
             case 'getAttendance':
                 result = db.attendance.filter((a:any) => a.date === params.date && a.entityType === params.type);
                 break;
+            case 'getAttendanceReport':
+                // Fetch attendance for the entire month
+                // params: { month: 'YYYY-MM', type: 'Student' | 'Staff' }
+                result = db.attendance.filter((a:any) => a.date.startsWith(params.month) && a.entityType === params.type);
+                break;
             case 'saveAttendance':
                 const { records } = params;
                 if (!records || records.length === 0) break;
@@ -445,7 +458,7 @@ async function mockRequestHandler<T>(action: string, params: any = {}): Promise<
                  result = { generated: generatedCount };
                  break;
 
-            // --- PAYROLL (SIMPLIFIED MOCK) ---
+            // --- PAYROLL (UPDATED FOR EXACT DAYS) ---
             case 'getAdjustments': result = params.staffId ? db.salary_adjustments.filter((a:any) => a.staffId === params.staffId) : db.salary_adjustments; break;
             case 'addAdjustment':
                  if (params.id) {
@@ -477,23 +490,70 @@ async function mockRequestHandler<T>(action: string, params: any = {}): Promise<
                     ? db.staff.filter((s:any) => staffIds.includes(s.id))
                     : db.staff.filter((s:any) => s.status === 'Active');
 
+                 // 1. Calculate Total Days in Month
+                 const [year, month] = monthYear.split('-').map(Number);
+                 const daysInMonth = new Date(year, month, 0).getDate(); // e.g., 28, 30, 31
+
+                 // 2. Identify Holidays / Off Days count for this specific month
+                 // (Simplified: We won't iterate every day here for performance unless necessary, 
+                 // but we will use the Attendance records to find Unpaid leaves accurately)
+                 
                  targetStaff.forEach((st:any) => {
                      if (db.salary_slips.some((s:any) => s.staffId === st.id && s.monthYear === monthYear)) return;
+                     
+                     // 3. Calculate Daily Rate
+                     const dailyRate = st.salary / daysInMonth;
+
+                     // 4. Count Unpaid Absences from Attendance
+                     // Only 'Absent' or 'UnpaidLeave' causes deduction.
+                     // 'PaidLeave', 'Late', 'Present' do not cause deduction (unless Late policy exists, ignoring for now)
+                     const absences = db.attendance.filter((a:any) => 
+                        a.entityId === st.id && 
+                        a.entityType === 'Staff' && 
+                        a.date.startsWith(monthYear) && 
+                        (a.status === 'Absent' || a.status === 'UnpaidLeave')
+                     ).length;
+
+                     const attendanceDeduction = Math.floor(absences * dailyRate);
+
+                     const relevantAdjs = db.salary_adjustments.filter((a:any) => 
+                         a.staffId === st.id && !a.isApplied && 
+                         a.date.substring(0,7) <= monthYear
+                     );
+                     
+                     const additions = relevantAdjs.filter((a:any) => a.type === 'Bonus').reduce((sum:number, a:any) => sum + a.amount, 0);
+                     const deductions = relevantAdjs.filter((a:any) => a.type !== 'Bonus').reduce((sum:number, a:any) => sum + a.amount, 0);
+
+                     const net = st.salary + additions - deductions - attendanceDeduction;
+
                      const newSlip = {
                          id: generateUUID(),
                          staffId: st.id,
                          monthYear: monthYear,
                          baseSalary: st.salary,
-                         totalBonuses: 0,
-                         totalDeductions: 0,
-                         attendanceDeduction: 0,
-                         netSalary: st.salary,
-                         adjustmentIds: [],
+                         totalBonuses: additions,
+                         totalDeductions: deductions,
+                         attendanceDeduction: attendanceDeduction,
+                         netSalary: net,
+                         adjustmentIds: relevantAdjs.map((a:any) => a.id),
                          generationDate: Date.now(),
                          status: 'Pending',
-                         attendanceStats: { totalDays: 30, present: 30, late: 0, absent: 0, paidLeave: 0 }
+                         attendanceStats: { 
+                             totalDays: daysInMonth, 
+                             workingDays: daysInMonth, // Just ref
+                             present: daysInMonth - absences, // Assumes present if not marked absent (inclusive of holidays)
+                             late: 0, 
+                             absent: absences, 
+                             paidLeave: 0,
+                             holidays: 0
+                         }
                      };
                      db.salary_slips.push(newSlip);
+                     
+                     relevantAdjs.forEach((a:any) => {
+                         const ra = db.salary_adjustments.find((x:any) => x.id === a.id);
+                         if(ra) { ra.isApplied = true; ra.appliedMonthYear = monthYear; }
+                     });
                      count++;
                  });
                  result = { generatedCount: count };
@@ -600,6 +660,7 @@ export const api = {
   
   // Attendance
   getAttendance: (date: string, type: 'Student' | 'Staff') => requestHandler<AttendanceRecord[]>('getAttendance', { date, type }),
+  getAttendanceReport: (month: string, type: 'Student' | 'Staff') => requestHandler<AttendanceRecord[]>('getAttendanceReport', { month, type }),
   saveAttendance: (records: AttendanceRecord[], user: User) => requestHandler<void>('saveAttendance', { records, user }),
 
   // Data

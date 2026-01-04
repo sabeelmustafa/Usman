@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/apiService';
 import { AuthContext } from '../AuthContext';
@@ -158,6 +159,11 @@ const Academics: React.FC = () => {
       alert("Error saving results");
     }
   };
+  
+  const printExam = (id: string) => {
+      const url = `${window.location.origin}${window.location.pathname}#/print/exam-schedule/${id}`;
+      window.open(url, '_blank');
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -222,7 +228,7 @@ const Academics: React.FC = () => {
                     <div className="mt-2 text-xs text-slate-500 font-medium">{ex.schedule?.length} subjects scheduled</div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                     <button onClick={() => window.open(`#/print/exam-schedule/${ex.id}`, '_blank')} className="flex items-center gap-1 text-sm font-bold bg-slate-100 px-3 py-1.5 rounded text-slate-700 hover:bg-slate-200 transition-colors">
+                     <button onClick={() => printExam(ex.id)} className="flex items-center gap-1 text-sm font-bold bg-slate-100 px-3 py-1.5 rounded text-slate-700 hover:bg-slate-200 transition-colors">
                         <Printer size={14}/> Print Schedule
                      </button>
                   </div>
@@ -277,32 +283,4 @@ const Academics: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
-                                {Object.keys(marksData).length === 0 && <tr><td colSpan={4} className="p-4 text-center text-slate-500">No subjects defined/assigned.</td></tr>}
-                                {Object.keys(marksData).map(subject => {
-                                    const m = marksData[subject];
-                                    const grade = calculateGrade(Number(m.marks), Number(m.total));
-                                    return (
-                                        <tr key={subject} className="bg-white hover:bg-slate-50 transition-colors">
-                                            <td className="px-4 py-3 font-bold text-slate-800">{subject}</td>
-                                            <td className="px-4 py-3"><input type="number" className="w-full bg-white text-slate-900 border border-slate-300 rounded px-2 py-1 outline-none focus:border-primary-500" value={m.total} onChange={(e) => handleMarkChange(subject, 'total', e.target.value)} /></td>
-                                            <td className="px-4 py-3"><input type="number" className="w-full bg-white text-slate-900 border border-slate-300 rounded px-2 py-1 outline-none focus:border-primary-500" value={m.marks} onChange={(e) => handleMarkChange(subject, 'marks', e.target.value)} placeholder="-" /></td>
-                                            <td className="px-4 py-3 text-center font-bold"><span className={`${grade === 'F' ? 'text-red-600' : grade.startsWith('A') ? 'text-emerald-600' : 'text-slate-600'}`}>{m.marks ? grade : '-'}</span></td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                        <button onClick={handleSaveResults} className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 shadow-sm flex items-center gap-2 font-bold"><Save size={18} /> Save Record</button>
-                    </div>
-                </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default Academics;
+                               

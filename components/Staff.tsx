@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/apiService';
 import { AuthContext } from '../AuthContext';
@@ -323,6 +324,16 @@ const StaffComp: React.FC = () => {
   const closePreview = () => {
       setPreviewSlipData(null);
   };
+  
+  const printBatch = () => {
+      const url = `${window.location.origin}${window.location.pathname}#/print/batch-salary-slip/${payrollMonth}`;
+      window.open(url, '_blank');
+  };
+  
+  const printSingleSlip = (id: string) => {
+      const url = `${window.location.origin}${window.location.pathname}#/print/salary-slip/${id}`;
+      window.open(url, '_blank');
+  };
 
   // Helper to get staff name from ID
   const getStaffName = (id: string) => {
@@ -483,7 +494,7 @@ const StaffComp: React.FC = () => {
                       </button>
 
                       <button 
-                         onClick={() => window.open(`#/print/batch-salary-slip/${payrollMonth}`, '_blank')}
+                         onClick={printBatch}
                          disabled={generatedSlips.length === 0}
                          className="bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 shadow-sm flex items-center gap-2 font-bold disabled:opacity-50 transition-colors"
                       >
@@ -959,7 +970,7 @@ const StaffComp: React.FC = () => {
                   <div className="p-4 border-t border-slate-200 bg-white rounded-b-xl flex justify-end gap-3">
                       <button onClick={closePreview} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Close</button>
                       <button 
-                          onClick={() => window.open(`#/print/salary-slip/${previewSlipData.slip.id}`, '_blank')}
+                          onClick={() => printSingleSlip(previewSlipData.slip.id)}
                           className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 flex items-center gap-2"
                       >
                           <Printer size={18}/> Print

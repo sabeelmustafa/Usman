@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/apiService';
@@ -140,6 +141,11 @@ const StudentProfile: React.FC = () => {
   const closePreview = () => {
       setPreviewInvoiceId(null);
       setPreviewData(null);
+  };
+  
+  const printInvoice = (id: string) => {
+      const url = `${window.location.origin}${window.location.pathname}#/print/invoice/${id}`;
+      window.open(url, '_blank');
   };
 
   const handleCourseEnroll = async (e: React.FormEvent) => {
@@ -609,7 +615,7 @@ const StudentProfile: React.FC = () => {
                   <div className="p-4 border-t border-slate-200 bg-white rounded-b-xl flex justify-end gap-3">
                       <button onClick={closePreview} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Close</button>
                       <button 
-                          onClick={() => window.open(`#/print/invoice/${previewInvoiceId}`, '_blank')}
+                          onClick={() => printInvoice(previewInvoiceId)}
                           className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 flex items-center gap-2"
                       >
                           <Printer size={18}/> Print
