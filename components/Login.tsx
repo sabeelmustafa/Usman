@@ -3,7 +3,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../AuthContext';
 import { api } from '../services/apiService';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, AlertCircle } from 'lucide-react';
+import { GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { SchoolSettings } from '../types';
 
 const Login: React.FC = () => {
@@ -40,12 +40,7 @@ const Login: React.FC = () => {
       navigate('/dashboard');
     } catch (err: any) {
       console.error("Login failed:", err);
-      // Differentiate between network error (Server not running) and Auth error
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-          setError('Cannot connect to server. Is "npm run server" running?');
-      } else {
-          setError(err.message || 'Invalid credentials.');
-      }
+      setError(err.message || 'Invalid credentials.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +74,11 @@ const Login: React.FC = () => {
                 <span>{error}</span>
             </div>
           )}
+          
+          <div className="p-3 bg-blue-50 text-blue-700 text-sm rounded-lg flex items-start gap-2 border border-blue-100">
+                <Info size={18} className="mt-0.5 flex-shrink-0" />
+                <span><strong>Demo Access:</strong><br/>Username: <code>admin</code><br/>Password: <code>admin</code></span>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>

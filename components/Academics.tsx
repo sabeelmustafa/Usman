@@ -283,4 +283,49 @@ const Academics: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
-                               
+                                {Object.entries(marksData).map(([subject, data]: [string, { marks: string, total: string }]) => (
+                                    <tr key={subject} className="hover:bg-white transition-colors">
+                                        <td className="px-4 py-3 font-medium text-slate-800 bg-white">{subject}</td>
+                                        <td className="px-4 py-3">
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-center focus:ring-2 focus:ring-primary-500 outline-none"
+                                                value={data.total}
+                                                onChange={(e) => handleMarkChange(subject, 'total', e.target.value)}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-center font-bold text-slate-800 focus:ring-2 focus:ring-primary-500 outline-none"
+                                                value={data.marks}
+                                                onChange={(e) => handleMarkChange(subject, 'marks', e.target.value)}
+                                                placeholder="-"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 text-center font-bold text-slate-600">
+                                            {calculateGrade(Number(data.marks || 0), Number(data.total || 100))}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                        <button 
+                            onClick={handleSaveResults} 
+                            className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+                        >
+                            <Save size={18} /> Save Result Card
+                        </button>
+                    </div>
+                </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Academics;

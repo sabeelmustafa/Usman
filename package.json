@@ -1,3 +1,4 @@
+
 {
   "name": "schoolflow",
   "version": "1.0.0",
@@ -5,16 +6,12 @@
   "type": "module",
   "scripts": {
     "vite": "vite",
-    "dev": "node start-dev.js",
+    "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "node server.js",
-    "start": "node server.js"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "latest",
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "@google/genai": "latest"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

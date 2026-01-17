@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
@@ -83,7 +84,9 @@ const getEmptyDB = () => ({
       bankName: '',
       bankAccountTitle: '',
       bankAccountNumber: '',
-      bankIban: ''
+      bankIban: '',
+      weeklyOffDays: [0, 6],
+      holidays: []
     },
     transactions: [],
     attendance: [],
@@ -110,7 +113,6 @@ if (!db) {
   } catch(e) { console.error("Init Error", e); }
 } else {
   // Scenario 2: DB exists. Check for missing keys (Migration)
-  // This ensures if we add new features (e.g. 'library_books'), the old DB gets that array added without data loss.
   const emptyDB = getEmptyDB();
   let modified = false;
   
@@ -149,7 +151,6 @@ const logAudit = (userId, userName, action, resource, details = "") => {
 };
 
 // --- HEALTH CHECK ENDPOINT ---
-// Use this to verify server is running: yourdomain.com/api/health
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'online', 
@@ -162,7 +163,6 @@ app.get('/api/health', (req, res) => {
 app.post('/api/rpc', (req, res) => {
     const { action, params } = req.body;
     let result = {};
-    // const user = params.user || { id: 'sys', name: 'System' }; // Context user
     
     try {
         switch (action) {
@@ -175,7 +175,6 @@ app.post('/api/rpc', (req, res) => {
                 break;
             
             case 'registerUser':
-                // params: username, password, name, role, linkedEntityId...
                 if(db.users.find(u => u.username === params.username)) throw new Error("Username exists");
                 const newUser = { ...params, id: generateUUID() };
                 db.users.push(newUser);
@@ -200,7 +199,7 @@ app.post('/api/rpc', (req, res) => {
                     const idx = db.users.findIndex(u => u.id === params.data.id);
                     if(idx !== -1) {
                         const updateData = { ...params.data };
-                        if(!updateData.password) delete updateData.password; // Don't overwrite if empty
+                        if(!updateData.password) delete updateData.password;
                         db.users[idx] = { ...db.users[idx], ...updateData };
                     }
                 } else if (params.type === 'delete') {
@@ -225,7 +224,7 @@ app.post('/api/rpc', (req, res) => {
                     totalStaff: db.staff.filter(s => s.status === 'Active').length,
                     collectedFees: db.transactions.filter(t => t.type === 'Fee' && t.status === 'Paid').reduce((acc, t) => acc + t.amount, 0),
                     pendingFees: db.invoices.filter(i => i.status === 'Pending').reduce((acc, i) => acc + i.amount_due, 0),
-                    attendanceToday: 0 // Simplification
+                    attendanceToday: 0
                 };
                 break;
 
@@ -305,7 +304,6 @@ app.post('/api/rpc', (req, res) => {
                 break;
             
             case 'updateEmployee':
-                // params: id, status
                 const empToUpdate = db.staff.find(s => s.id === params.id);
                 if(empToUpdate) {
                     empToUpdate.status = params.status;
@@ -333,7 +331,7 @@ app.post('/api/rpc', (req, res) => {
                 result = { success: true };
                 break;
 
-            // --- COURSES / THERAPIES ---
+             // --- COURSES / THERAPIES ---
             case 'getAllCourses': result = db.courses; break;
             case 'manageCourse':
                 if (params.type === 'add') {
@@ -369,9 +367,7 @@ app.post('/api/rpc', (req, res) => {
                 break;
             
             case 'recordStudentResult':
-                // params: student_id, exam_id, subject_name, marks_obtained, total_marks, grade
                 if (!db.exam_results) db.exam_results = [];
-                // Remove existing if overwriting
                 db.exam_results = db.exam_results.filter(r => !(r.studentId === params.student_id && r.examId === params.exam_id && r.subject === params.subject_name));
                 
                 db.exam_results.push({
@@ -392,14 +388,16 @@ app.post('/api/rpc', (req, res) => {
             case 'getAttendance':
                 result = db.attendance.filter(a => a.date === params.date && a.entityType === params.type);
                 break;
-
+            case 'getAttendanceReport':
+                // Fetch attendance for the entire month
+                // params: { month: 'YYYY-MM', type: 'Student' | 'Staff' }
+                result = db.attendance.filter(a => a.date.startsWith(params.month) && a.entityType === params.type);
+                break;
             case 'saveAttendance':
                 const { records } = params;
                 if (!records || records.length === 0) break;
                 const newEntityIds = records.map(r => r.entityId);
-                // Remove existing records for these entities on this date
                 db.attendance = db.attendance.filter(a => !(a.date === records[0].date && a.entityType === records[0].entityType && newEntityIds.includes(a.entityId)));
-                // Add new
                 records.forEach(r => db.attendance.push({ ...r, id: generateUUID() }));
                 saveDB(db);
                 break;
@@ -416,7 +414,6 @@ app.post('/api/rpc', (req, res) => {
                 break;
 
             case 'markInvoicePaid':
-                // params: id
                 const invToPay = db.invoices.find(i => i.id === params.id);
                 if (invToPay) {
                     invToPay.status = 'Paid';
@@ -437,7 +434,6 @@ app.post('/api/rpc', (req, res) => {
             case 'deleteInvoice':
                  const invToDel = db.invoices.find(i => i.id === params.id);
                  if(invToDel) {
-                     // Release adjustments linked to this invoice so they can be re-billed
                      const linkedAdjs = db.student_adjustments.filter(a => a.invoiceId === params.id);
                      linkedAdjs.forEach(a => {
                          a.isApplied = false;
@@ -516,13 +512,11 @@ app.post('/api/rpc', (req, res) => {
                      const items = [];
 
                      if (!hasTuitionInvoice) {
-                         // Monthly
                          const monthlyCourses = db.student_courses.filter(sc => sc.studentId === s.id && sc.feeBasis === 'Monthly');
                          monthlyCourses.forEach(c => {
                              const courseDef = db.courses.find(cd => cd.id === c.courseId);
                              items.push({ description: `${courseDef ? courseDef.name : 'Therapy'}`, amount: c.agreedFee });
                          });
-                         // Daily
                          const dailyCourses = db.student_courses.filter(sc => sc.studentId === s.id && sc.feeBasis === 'Daily');
                          if (dailyCourses.length > 0) {
                              const presentDays = db.attendance.filter(a => a.entityId === s.id && a.entityType === 'Student' && a.date.startsWith(month_year) && (a.status === 'Present' || a.status === 'Late')).length;
@@ -534,7 +528,6 @@ app.post('/api/rpc', (req, res) => {
                              }
                          }
                      }
-                     // Adjustments
                      const adjs = db.student_adjustments.filter(a => a.studentId === s.id && !a.isApplied);
                      adjs.forEach(a => { items.push({ description: `${a.type}: ${a.description}`, amount: a.amount }); });
 
@@ -573,7 +566,7 @@ app.post('/api/rpc', (req, res) => {
                 }
                 break;
 
-            case 'addAdjustment': // Staff adjustment
+            case 'addAdjustment':
                  if (params.id) {
                      const idx = db.salary_adjustments.findIndex(a => a.id === params.id);
                      if(idx !== -1) db.salary_adjustments[idx] = { ...db.salary_adjustments[idx], ...params };
@@ -589,19 +582,15 @@ app.post('/api/rpc', (req, res) => {
                  break;
 
             case 'updateAdjustmentDate':
-                 // Shift adjustment to another month
                  const adjToShift = db.salary_adjustments.find(a => a.id === params.id);
                  if(adjToShift) {
                      adjToShift.date = params.newDate;
-                     // If it was applied, unapply it (assuming logic handles re-application)
-                     // But typically we shift unapplied ones.
                      saveDB(db);
                  }
                  break;
             
             case 'getSlipsByMonth':
                  result = db.salary_slips.filter(s => s.monthYear === params.monthYear);
-                 // Enrich with staff names
                  result = result.map(slip => {
                      const st = db.staff.find(x => x.id === slip.staffId);
                      return { ...slip, staff_name: st?.name || 'Unknown', staff_designation: st?.designation || '' };
@@ -611,7 +600,6 @@ app.post('/api/rpc', (req, res) => {
             case 'getSlipById':
                  const slip = db.salary_slips.find(s => s.id === params.id);
                  if(!slip) throw new Error("Slip not found");
-                 // Hydrate adjustments
                  const slipAdjs = db.salary_adjustments.filter(a => slip.adjustmentIds.includes(a.id));
                  result = { ...slip, adjustments: slipAdjs };
                  break;
@@ -623,33 +611,25 @@ app.post('/api/rpc', (req, res) => {
                     ? db.staff.filter(s => staffIds.includes(s.id))
                     : db.staff.filter(s => s.status === 'Active');
 
+                 const [year, month] = monthYear.split('-').map(Number);
+                 const daysInMonth = new Date(year, month, 0).getDate();
+
                  targetStaff.forEach(st => {
-                     // Check if already generated
                      if (db.salary_slips.some(s => s.staffId === st.id && s.monthYear === monthYear)) return;
 
-                     // Calculate Attendance
-                     // (Simplified logic: count absences)
                      const absences = db.attendance.filter(a => 
                          a.entityId === st.id && a.entityType === 'Staff' && 
                          a.date.startsWith(monthYear) && (a.status === 'Absent' || a.status === 'UnpaidLeave')
                      ).length;
                      
-                     // Simple deduction per day assumption (Salary / 30)
                      const dailyRate = st.salary / 30;
                      const attendanceDeduction = Math.floor(absences * dailyRate);
 
-                     // Get Adjustments (effective in this month or prior unapplied)
-                     // Logic: Adjustments with date in this month OR unapplied from past
                      const relevantAdjs = db.salary_adjustments.filter(a => 
                          a.staffId === st.id && !a.isApplied && 
                          a.date.substring(0,7) <= monthYear
                      );
 
-                     const bonuses = relevantAdjs.filter(a => a.type === 'Bonus' || a.type === 'Advance').reduce((sum, a) => sum + (a.type === 'Bonus' ? a.amount : 0), 0); // Advance is usually a deduction in slip if taken previously, OR an addition if paying it out now? 
-                     // Standard Logic: 'Advance' type in adjustment usually means "Giving Money Now" (so it's a Transaction, not a Slip Item usually). 
-                     // But if we use adjustment to mean "Deduct Advance Return", type should be 'Deduction'.
-                     // Let's assume Type: Bonus (+) and Type: Fine/Deduction/Advance (-)
-                     
                      const additions = relevantAdjs.filter(a => a.type === 'Bonus').reduce((sum, a) => sum + a.amount, 0);
                      const deductions = relevantAdjs.filter(a => a.type !== 'Bonus').reduce((sum, a) => sum + a.amount, 0);
 
@@ -677,8 +657,6 @@ app.post('/api/rpc', (req, res) => {
                      };
 
                      db.salary_slips.push(newSlip);
-                     
-                     // Mark adjustments applied
                      relevantAdjs.forEach(a => {
                          const ra = db.salary_adjustments.find(x => x.id === a.id);
                          if(ra) { ra.isApplied = true; ra.appliedMonthYear = monthYear; }
@@ -692,7 +670,6 @@ app.post('/api/rpc', (req, res) => {
             case 'deleteSalarySlip':
                  const slipToDel = db.salary_slips.find(s => s.id === params.id);
                  if(slipToDel) {
-                     // Release adjustments
                      slipToDel.adjustmentIds.forEach(aid => {
                          const adj = db.salary_adjustments.find(a => a.id === aid);
                          if(adj) { adj.isApplied = false; adj.appliedMonthYear = null; }
@@ -720,22 +697,16 @@ app.post('/api/rpc', (req, res) => {
                  break;
             
             case 'refreshSalarySlip':
-                 // Recalculate slip logic would go here. For now, we return existing.
-                 // In real app: Delete + Regenerate logic
                  result = db.salary_slips.find(s => s.id === params.slipId);
                  break;
             
             case 'postponeAdjustment':
-                 // params: id (adjustment id)
                  const adjPostpone = db.salary_adjustments.find(a => a.id === params.id);
                  if(adjPostpone) {
-                     // Set date to next month
                      const d = new Date(adjPostpone.date);
                      d.setMonth(d.getMonth() + 1);
                      adjPostpone.date = d.toISOString().split('T')[0];
                      adjPostpone.isApplied = false;
-                     // Also need to remove from current slip if linked? 
-                     // Complexity: Frontend calls deleteSalarySlip usually before refreshing, or handled via specific logic
                      saveDB(db);
                  }
                  break;
@@ -754,23 +725,16 @@ app.post('/api/rpc', (req, res) => {
             // --- DATA ---
             case 'exportDatabase': result = db; break;
             case 'importDatabase': 
-                if (!params.data || !params.data.users || !Array.isArray(params.data.users)) {
-                    throw new Error("Invalid backup file format. Missing 'users' array.");
-                }
+                if (!params.data || !params.data.users) throw new Error("Invalid backup file");
                 db = params.data;
                 saveDB(db);
-                result = { success: true, message: "Database imported successfully." };
+                result = { success: true };
                 break;
 
             case 'factoryReset':
-                // Completely wipe in-memory data and persist to disk
                 db = getEmptyDB();
-                // Factory reset should ideally happen immediately to ensure clean state
-                try {
-                    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-                } catch(e) { console.error("Reset Error", e); }
+                try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); } catch(e) {}
                 result = { success: true };
-                console.log("FACTORY RESET PERFORMED");
                 break;
 
             default:
@@ -784,24 +748,18 @@ app.post('/api/rpc', (req, res) => {
 });
 
 // --- STATIC FILES (PRODUCTION) ---
-// Serve the built React files from 'dist' folder.
-// cPanel apps usually have server.js in root and dist folder in root.
 const distPath = path.join(__dirname, 'dist');
 
 if (fs.existsSync(distPath)) {
     console.log(`Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
-    
-    // SPA Fallback for all other routes
     app.get('*', (req, res) => {
-        // Ensure we don't return HTML for API calls that were not handled
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API endpoint not found' });
         }
         res.sendFile(path.join(distPath, 'index.html'));
     });
 } else {
-    // Basic fallback if dist doesn't exist (e.g., API-only mode or dev)
     console.log(`Warning: 'dist' folder not found at ${distPath}. Serving API only.`);
     app.get('/', (req, res) => res.send('SchoolFlow API Server is Running. Frontend "dist" folder is missing.'));
 }

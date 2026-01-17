@@ -7,7 +7,7 @@ import {
 } from '../types';
 
 // --- CONFIGURATION ---
-// SET THIS TO TRUE FOR PREVIEW ENVIRONMENTS (No Backend)
+// SET THIS TO TRUE FOR FRONTEND-ONLY MODE
 const USE_MOCK = true; 
 
 const getApiUrl = () => '/api/rpc';
@@ -597,28 +597,11 @@ async function mockRequestHandler<T>(action: string, params: any = {}): Promise<
 }
 
 // --- REAL SERVER REQUEST HANDLER ---
+// This is effectively disabled when USE_MOCK is true, 
+// but kept for type safety or future expansion if needed.
 async function realRequestHandler<T>(action: string, params: any = {}): Promise<T> {
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, params }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      let errorMsg = `Server Error: ${response.status}`;
-      try {
-        const json = JSON.parse(text);
-        if(json.error) errorMsg = json.error;
-      } catch(e) {}
-      throw new Error(errorMsg);
-    }
-
-    return await response.json();
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
+  console.warn("Real request handler called in Mock mode. This should not happen.");
+  return Promise.reject("Backend is disabled.");
 }
 
 // --- EXPORT ---

@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
@@ -5,7 +6,7 @@ import { api } from '../services/apiService';
 import { SchoolSettings } from '../types';
 import { 
   LayoutDashboard, Users, CreditCard, Briefcase, LogOut, Menu, X, 
-  GraduationCap, Settings, ShieldAlert, CalendarCheck, UserCog, User as UserIcon, Activity, ChevronRight
+  GraduationCap, Settings, CalendarCheck, UserCog, User as UserIcon, Activity, ChevronRight
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
@@ -111,7 +112,6 @@ const Layout: React.FC = () => {
                 <NavItem to="/users" icon={UserCog} label="User Access" />
                 <NavItem to="/classes" icon={Activity} label="Therapies" />
                 <NavItem to="/settings" icon={Settings} label="Settings" />
-                <NavItem to="/logs" icon={ShieldAlert} label="Audit Logs" />
               </>
             )}
           </nav>

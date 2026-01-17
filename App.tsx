@@ -11,7 +11,6 @@ import Staff from './components/Staff';
 import EmployeeProfile from './components/EmployeeProfile';
 import Courses from './components/Classes'; // File re-used as courses
 import Settings from './components/Settings';
-import AuditLogs from './components/AuditLogs';
 import Attendance from './components/Attendance';
 import Users from './components/Users';
 import Layout from './components/Layout';
@@ -19,32 +18,25 @@ import PrintView from './components/PrintView';
 import { AuthContext } from './AuthContext';
 import { Loader2 } from 'lucide-react';
 
-// Default Admin User for seamless access
-const DEFAULT_ADMIN: User = { 
-  id: 'u-1', 
-  username: 'admin', 
-  role: 'Admin', 
-  name: 'Super Admin' 
-};
-
-// Simplified Protected Route Component (Bypassing auth)
-const ProtectedRoute = ({ children, allowedRoles }: { children?: React.ReactNode, allowedRoles?: Role[] }) => {
+// Protected Route Component
+const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
   const { user } = React.useContext(AuthContext);
   
-  // Auth is disabled: directly returning children.
-  // In a real app, you'd check if user exists, but here we default to Super Admin.
+  if (!user) {
+      return <Navigate to="/login" replace />;
+  }
+  
   return <>{children}</>;
 };
 
 const SESSION_KEY = 'schoolflow_therapy_session';
 
 const App: React.FC = () => {
-  // Initializing with DEFAULT_ADMIN to remove login screen
-  const [user, setUser] = useState<User | null>(DEFAULT_ADMIN);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try to load existing session if it exists, otherwise use default
+    // Try to load existing session if it exists
     try {
         let storedUser = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
         if (storedUser) {
@@ -79,13 +71,12 @@ const App: React.FC = () => {
     setUser(null);
     localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
-    // Refresh to reset to DEFAULT_ADMIN state for this "no-login" version
+    // Refresh to clear state
     window.location.reload();
   };
 
   const getDefaultRoute = () => {
-    if (user?.role === 'Admin') return '/dashboard';
-    return '/dashboard'; // Default to dashboard for all in no-login mode
+    return '/dashboard'; 
   };
 
   if (loading) {
@@ -101,8 +92,7 @@ const App: React.FC = () => {
     <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       <HashRouter>
         <Routes>
-          {/* Redirect any login attempt to dashboard */}
-          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
           <Route path="/print/:type/:id" element={<PrintView />} />
           
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -117,14 +107,13 @@ const App: React.FC = () => {
             <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="classes" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
-            <Route path="logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
             
             <Route path="fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
             <Route path="staff" element={<ProtectedRoute><Staff /></ProtectedRoute>} />
             <Route path="staff/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
           </Route>
           
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </HashRouter>
     </AuthContext.Provider>
