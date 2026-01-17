@@ -421,7 +421,7 @@ async function mockRequestHandler<T>(action: string, params: any = {}): Promise<
                  targetStudents.forEach((s:any) => {
                      const existingInvoices = db.invoices.filter((i:any) => i.student_id === s.id && i.month_year === month_year);
                      const hasTuitionInvoice = existingInvoices.some((inv:any) => inv.items.some((item:any) => item.description.startsWith('Tuition:') || item.description.includes('Therapy')));
-                     const items = [];
+                     const items: {description: string, amount: number}[] = [];
 
                      if (!hasTuitionInvoice) {
                          const monthlyCourses = db.student_courses.filter((sc:any) => sc.studentId === s.id && sc.feeBasis === 'Monthly');
