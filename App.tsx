@@ -15,6 +15,7 @@ import Attendance from './components/Attendance';
 import Users from './components/Users';
 import Layout from './components/Layout';
 import PrintView from './components/PrintView';
+import LandingPage from './components/LandingPage';
 import { AuthContext } from './AuthContext';
 import { Loader2 } from 'lucide-react';
 
@@ -92,6 +93,7 @@ const App: React.FC = () => {
     <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       <HashRouter>
         <Routes>
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
           <Route path="/print/:type/:id" element={<PrintView />} />
           

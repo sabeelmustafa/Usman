@@ -3,7 +3,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../AuthContext';
 import { api } from '../services/apiService';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, AlertCircle, Info } from 'lucide-react';
+import { GraduationCap, AlertCircle, Info, HelpCircle } from 'lucide-react';
 import { SchoolSettings } from '../types';
 
 const Login: React.FC = () => {
@@ -47,7 +47,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-8">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-8">
           {schoolSettings?.logo_url ? (
@@ -118,7 +118,31 @@ const Login: React.FC = () => {
           <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white font-semibold py-3 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
             {loading ? 'Verifying...' : 'Login'}
           </button>
+          
+          <button 
+            type="button"
+            onClick={() => navigate('/landing')}
+            className="w-full bg-white text-slate-600 border border-slate-200 font-semibold py-3 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <HelpCircle size={18} /> What Does This App Do?
+          </button>
         </form>
+
+        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Developed By</span>
+            <a 
+                href="https://www.fiverr.com/sabeelmustafa/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:opacity-80 transition-opacity"
+            >
+                <img 
+                    src="https://admin.diversory.center/vvlogo.png" 
+                    alt="Developer Logo" 
+                    className="h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity" 
+                />
+            </a>
+        </div>
       </div>
     </div>
   );
